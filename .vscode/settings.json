@@ -78,7 +78,10 @@
     "fstream": "cpp",
     "future": "cpp",
     "scoped_allocator": "cpp",
-    "typeindex": "cpp"
+    "typeindex": "cpp",
+    "complex": "cpp",
+    "shared_mutex": "cpp",
+    "stdfloat": "cpp"
   },
   "taskExplorer.exclude": [
     "**/.vscode-test/**",

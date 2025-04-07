@@ -5,12 +5,13 @@
             "includePath": [
                 // "${workspaceFolder}/*",
                 "${workspaceFolder}/include/*",
-                "${workspaceFolder}/include/**"
+                "${workspaceFolder}/include/**",
+                "/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cppStandard": "c++20",
             "intelliSenseMode": "linux-clang-x64"
         }
     ],

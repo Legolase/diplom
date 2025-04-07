@@ -16,19 +16,20 @@
                 // "-I\"/home/nikita/vcpkg/buildtrees/gtest/src/v1.15.2-41f5afb119.clean/googlemock/include\"",
 
                 // fmt
-                // "-I\"/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include\"",
+                "-I\"/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include\"",
 
                 "-g",
                 // "-O2",
                 // source
                 "${workspaceFolder}/src/*.cpp",
+                "${workspaceFolder}/src/**/*.cpp",
 
                 // source gtest
                 // "/home/nikita/vcpkg/buildtrees/gtest/x64-linux-rel/lib/libgtest.a",
                 // "/home/nikita/vcpkg/buildtrees/gtest/x64-linux-rel/lib/libgtest_main.a",
 
                 // source fmt
-                // "/home/nikita/vcpkg/buildtrees/fmt/x64-linux-rel/libfmt.a",
+                "/home/nikita/vcpkg/buildtrees/fmt/x64-linux-rel/libfmt.a",
 
                 "--std=c++20",
                 "-o",

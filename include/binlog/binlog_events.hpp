@@ -6,13 +6,14 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace mysql_binlog::event {
 
-enum class LogEventType {
+enum class LogEventType : uint8_t {
   /**
     Every time you add a type, you have to
     - Assign it a number explicitly. Otherwise it will cause trouble
@@ -109,16 +110,22 @@ enum class LogEventType {
 };
 
 struct EventHeader {
+  explicit EventHeader(LogEventType _type = LogEventType::ENUM_END_EVENT) noexcept;
+  explicit EventHeader(std::istream& in);
+
   uint32_t when;
   uint32_t unmasked_server_id;
   uint32_t data_written;
   uint32_t log_pos;
   uint16_t flags;
-  uint8_t type_code;
+  LogEventType type_code;
 };
 
 struct BinlogEvent {
   using Ptr = std::shared_ptr<BinlogEvent>;
+
+  explicit BinlogEvent(LogEventType _type);
+  explicit BinlogEvent(std::istream& in);
 
   EventHeader header;
 };
@@ -143,18 +150,21 @@ struct DeleteFileEvent : BinlogEvent {
 struct FormatDescriptionEvent : BinlogEvent {
   using Ptr = std::shared_ptr<FormatDescriptionEvent>;
 
+  FormatDescriptionEvent(uint8_t binlog_ver, const char* server_ver);
+  FormatDescriptionEvent(std::istream& in, FormatDescriptionEvent* fde);
+
   uint32_t created;
   uint16_t binlog_version;
   char server_version[ST_SERVER_VER_LEN];
   bool dont_set_created;
   uint8_t common_header_len;
   std::vector<uint8_t> post_header_len;
-  char server_version_split[ST_SERVER_VER_SPLIT_LEN];
-  uint8_t number_of_event_types;
 };
 
 struct GtidEvent : BinlogEvent {
   using Ptr = std::shared_ptr<GtidEvent>;
+
+  static constexpr uint64_t kGroupTicketUnset = 0;
 
   struct GtidInfo {
     int32_t rpl_gtid_sidno;
@@ -177,7 +187,7 @@ struct GtidEvent : BinlogEvent {
   uint64_t transaction_length;
   uint32_t original_server_version;
   uint32_t immediate_server_version;
-  std::uint64_t commit_group_ticket{kGroupTicketUnset};
+  uint64_t commit_group_ticket{kGroupTicketUnset};
 
   GtidInfo gtid_info_struct;
   Tsid tsid_parent_struct;

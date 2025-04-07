@@ -8,7 +8,8 @@
 
 namespace mysql_binlog::reader {
 
-std::vector<mysql_binlog::event::BinlogEvent::Ptr> read() {}
+int read(const char* file_path,
+         std::vector<mysql_binlog::event::BinlogEvent::Ptr>& storage);
 
 }; // namespace mysql_binlog::reader
 
