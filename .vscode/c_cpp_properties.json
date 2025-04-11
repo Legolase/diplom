@@ -6,7 +6,9 @@
                 // "${workspaceFolder}/*",
                 "${workspaceFolder}/include/*",
                 "${workspaceFolder}/include/**",
-                "/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include"
+                "/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include",
+                "/home/nikita/vcpkg/buildtrees/gtest/src/v1.15.2-41f5afb119.clean/googletest/include",
+                "/home/nikita/vcpkg/buildtrees/gtest/src/v1.15.2-41f5afb119.clean/googlemock/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
