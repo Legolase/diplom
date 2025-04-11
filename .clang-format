@@ -20,3 +20,4 @@ Language: Cpp
 PointerAlignment: Left
 IndentAccessModifiers: false
 AccessModifierOffset: -2
+AllowShortLambdasOnASingleLine: None
