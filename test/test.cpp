@@ -206,6 +206,8 @@ TEST(StreamReader, All) {
 
   EXPECT_EQ(a, 3758288897);
   EXPECT_EQ(b, 1);
+  b = reader.fetch<char>(1);
+  EXPECT_EQ(b, 0xf0);
   EXPECT_EQ(c, 13836412670250774529ull);
 
   b = reader.read<char>();
