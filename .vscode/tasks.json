@@ -21,7 +21,7 @@
                 "-g",
                 // "-O2",
                 // source
-                "${workspaceFolder}/src/*.cpp",
+                "${workspaceFolder}/src/main.cpp",
                 "${workspaceFolder}/src/**/*.cpp",
 
                 // source gtest
@@ -70,8 +70,6 @@
                 // "-O2",
                 // source
                 "${workspaceFolder}/test/test.cpp",
-                "${workspaceFolder}/src/string_buffer_reader.cpp",
-                "${workspaceFolder}/src/utils.cpp",
                 "${workspaceFolder}/src/**/*.cpp",
 
                 // source gtest
