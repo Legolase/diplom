@@ -2,6 +2,7 @@
 #define _UTILS_STREAM_READER_HPP
 
 #include <defines.hpp>
+#include <utils/common.hpp>
 
 #include <iostream>
 #include <type_traits>
