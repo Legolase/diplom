@@ -30,12 +30,7 @@ struct StreamReader {
   T read() {
     T value;
 
-    const auto read_size = stream.readsome(reinterpret_cast<char*>(&value), sizeof(T));
-
-    if (read_size != sizeof(T)) {
-      throw BadStream(fmt::format("[Error] Attempt to read {} byte(s) in {}", sizeof(T),
-                                  CURRENT_POSITION));
-    }
+    readCpy(reinterpret_cast<char*>(&value), sizeof(value));
 
     return value;
   }
@@ -49,16 +44,24 @@ struct StreamReader {
   /// available to read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T fetch(size_t offset = 0) {
+  T peek(size_t offset = 0) {
     T value;
-    const auto start_pos = stream.tellg();
 
-    stream.seekg(offset, std::ios::cur);
-    value = read<T>();
-    stream.seekg(start_pos);
+    peekCpy(reinterpret_cast<char*>(&value), offset, sizeof(value));
 
     return value;
   }
+
+  /// @brief Row copy of memory to specified place
+  /// @param[in, out] dest Place to copy sequence of character
+  /// @param[in] size Size of required sequence
+  void readCpy(char* dest, size_t size);
+
+  /// @brief Row copy of memory relative to offset to specified place
+  /// @param[in, out] dest Place to copy sequence of character
+  /// @param[in] offset Unsigned offset to jump to before reading the stream
+  /// @param[in] size Size of required sequence
+  void peekCpy(char* dest, size_t offset, size_t size);
 
 private:
   /// @brief The stream from which to read binary data
