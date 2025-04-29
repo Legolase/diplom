@@ -54,18 +54,8 @@ public:
   template <typename T>
     requires std::is_default_constructible_v<T>
   T read() {
-    const auto avail = available();
-    if (sizeof(T) > avail) {
-      throw BadStream(
-          fmt::format("[Error] Attempt to read more than left in {}", CURRENT_POSITION));
-    }
-
     T value;
-    char* dst = reinterpret_cast<char*>(&value);
-    const char* src = source() + pos;
-
-    std::memcpy(dst, src, sizeof(T));
-    pos += sizeof(T);
+    readCpy(reinterpret_cast<char*>(&value), sizeof(value));
 
     return value;
   }
@@ -79,13 +69,10 @@ public:
   /// available to read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T fetch(size_t offset = 0) {
+  T peek(size_t offset = 0) {
     T value;
-    const auto start_pos = pos;
 
-    pos += offset;
-    value = read<T>();
-    pos = start_pos;
+    peekCpy(reinterpret_cast<char*>(&value), offset, sizeof(value));
 
     return value;
   }
@@ -99,12 +86,22 @@ public:
   /// @param[in, out] dest Place to copy sequence of character
   /// @param[in] offset Unsigned offset to jump to before reading the stream
   /// @param[in] size Size of required sequence
-  void fetchCpy(char* dest, size_t offset, size_t size);
+  void peekCpy(char* dest, size_t offset, size_t size);
 
-private:
   /// @brief Tail size
   /// @return Size of left part of buffer
   size_t available() const noexcept;
+
+  /// @brief Flips the available end of the buffer by the specified length of bytes.
+  /// @param[in] length Number of bytes to flip.
+  /// @throws `BadStream` Thrown if the length is invalid and exceeds the `available()`.
+  void flipEnd(size_t length);
+
+  /// @brief Return current position relative to beginning of the buffer
+  /// @return Current position
+  size_t position() const noexcept;
+
+private:
   /// @brief Buffer begining
   /// @returns Pointer to buffer begining
   const char* source() const noexcept;

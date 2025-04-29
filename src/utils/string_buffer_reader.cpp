@@ -1,3 +1,4 @@
+#include "string_buffer_reader.hpp"
 #include <utils/string_buffer_reader.hpp>
 
 namespace utils {
@@ -21,7 +22,7 @@ void StringBufferReader::readCpy(char* dest, size_t size) {
   pos += size;
 }
 
-void StringBufferReader::fetchCpy(char* dest, size_t offset, size_t size) {
+void StringBufferReader::peekCpy(char* dest, size_t offset, size_t size) {
   const auto start_pos = pos;
 
   pos += offset;
@@ -34,6 +35,27 @@ size_t StringBufferReader::available() const noexcept {
     return 0;
   }
   return size() - pos;
+}
+
+void StringBufferReader::flipEnd(size_t length) {
+  if (available() < length) {
+    throw BadStream(fmt::format("[Error] Attempt to flip more bytes than available",
+                                CURRENT_POSITION));
+  }
+
+  std::visit(Overload{
+                 [&](std::string& str) {
+                   str.resize(str.size() - length);
+                 },
+                 [&](std::string_view& str_view) {
+                   str_view.remove_suffix(length);
+                 },
+             },
+             storage_v);
+}
+
+size_t StringBufferReader::position() const noexcept {
+  return pos;
 }
 
 const char* StringBufferReader::source() const noexcept {
