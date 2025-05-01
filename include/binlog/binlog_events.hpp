@@ -2,6 +2,7 @@
 #define _BINLOG_EVENTS_HPP
 
 #include <binlog/binlog_defines.hpp>
+#include <utils/string_buffer_reader.hpp>
 
 #include <cstdint>
 #include <list>
@@ -13,7 +14,7 @@
 
 namespace mysql_binlog::event {
 
-enum class LogEventType : uint8_t {
+enum LogEventType : uint8_t {
   /**
     Every time you add a type, you have to
     - Assign it a number explicitly. Otherwise it will cause trouble
@@ -46,35 +47,17 @@ enum class LogEventType : uint8_t {
 
   TABLE_MAP_EVENT = 19,
 
-  /*
-    The V1 event numbers are used from 5.1.16 until mysql-5.6.
-    Not generated since 8.2.0, and rejected by the applier since 8.4.0
-  */
   OBSOLETE_WRITE_ROWS_EVENT_V1 = 23,
   OBSOLETE_UPDATE_ROWS_EVENT_V1 = 24,
   OBSOLETE_DELETE_ROWS_EVENT_V1 = 25,
 
-  /**
-    Something out of the ordinary happened on the master
-   */
   INCIDENT_EVENT = 26,
 
-  /**
-    Heartbeat event to be send by master at its idle time
-    to ensure master's online status to slave
-  */
   HEARTBEAT_LOG_EVENT = 27,
 
-  /**
-    In some situations, it is necessary to send over ignorable
-    data to the slave: data that a slave can handle in case there
-    is code for handling it, but which can be ignored if it is not
-    recognized.
-  */
   IGNORABLE_LOG_EVENT = 28,
   ROWS_QUERY_LOG_EVENT = 29,
 
-  /** Version 2 of the Row events */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
@@ -88,13 +71,8 @@ enum class LogEventType : uint8_t {
 
   VIEW_CHANGE_EVENT = 37,
 
-  /* Prepared XA transaction terminal event similar to Xid */
   XA_PREPARE_LOG_EVENT = 38,
 
-  /**
-    Extension of UPDATE_ROWS_EVENT, allowing partial values according
-    to binlog_row_value_options.
-  */
   PARTIAL_UPDATE_ROWS_EVENT = 39,
 
   TRANSACTION_PAYLOAD_EVENT = 40,
@@ -102,16 +80,55 @@ enum class LogEventType : uint8_t {
   HEARTBEAT_LOG_EVENT_V2 = 41,
 
   GTID_TAGGED_LOG_EVENT = 42,
-  /**
-    Add new events here - right above this comment!
-    Existing events (except ENUM_END_EVENT) should never change their numbers
-  */
-  ENUM_END_EVENT /* end marker */
+  ENUM_END_EVENT
 };
+
+enum LogEventPostHeaderSize : uint32_t {
+  // where 3.23, 4.x and 5.0 agree
+  QUERY_HEADER_MINIMAL_LEN = (4 + 4 + 1 + 2),
+  // where 5.0 differs: 2 for length of N-bytes vars.
+  QUERY_HEADER_LEN = (QUERY_HEADER_MINIMAL_LEN + 2),
+  STOP_HEADER_LEN = 0,
+  START_V3_HEADER_LEN = (2 + ST_SERVER_VER_LEN + 4),
+  // this is FROZEN (the Rotate post-header is frozen)
+  ROTATE_HEADER_LEN = 8,
+  INTVAR_HEADER_LEN = 0,
+  APPEND_BLOCK_HEADER_LEN = 4,
+  DELETE_FILE_HEADER_LEN = 4,
+  RAND_HEADER_LEN = 0,
+  USER_VAR_HEADER_LEN = 0,
+  FORMAT_DESCRIPTION_HEADER_LEN = (START_V3_HEADER_LEN + 1 + ENUM_END_EVENT - 1),
+  XID_HEADER_LEN = 0,
+  BEGIN_LOAD_QUERY_HEADER_LEN = APPEND_BLOCK_HEADER_LEN,
+  ROWS_HEADER_LEN_V1 = 8,
+  TABLE_MAP_HEADER_LEN = 8,
+  EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN = (4 + 4 + 4 + 1),
+  EXECUTE_LOAD_QUERY_HEADER_LEN =
+      (QUERY_HEADER_LEN + EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN),
+  INCIDENT_HEADER_LEN = 2,
+  HEARTBEAT_HEADER_LEN = 0,
+  IGNORABLE_HEADER_LEN = 0,
+  ROWS_HEADER_LEN_V2 = 10,
+  TRANSACTION_CONTEXT_HEADER_LEN = 18,
+  VIEW_CHANGE_HEADER_LEN = 52,
+  XA_PREPARE_HEADER_LEN = 0,
+  TRANSACTION_PAYLOAD_HEADER_LEN = 0
+};
+
+enum class ChecksumAlg {
+  OFF = 0,
+  CRC32 = 1,
+  ENUM_END,
+  UNDEF = 255
+};
+
+inline constexpr int LOG_EVENT_TYPES = LogEventType::ENUM_END_EVENT - 1;
+
+struct FormatDescriptionEvent;
 
 struct EventHeader {
   explicit EventHeader(LogEventType _type = LogEventType::ENUM_END_EVENT) noexcept;
-  explicit EventHeader(std::istream& in);
+  explicit EventHeader(utils::StringBufferReader& reader);
 
   uint32_t when;
   uint32_t unmasked_server_id;
@@ -122,36 +139,47 @@ struct EventHeader {
 };
 
 struct BinlogEvent {
-  using Ptr = std::shared_ptr<BinlogEvent>;
+  using UPtr = std::unique_ptr<BinlogEvent>;
+  using SPtr = std::shared_ptr<BinlogEvent>;
 
   explicit BinlogEvent(LogEventType _type);
-  explicit BinlogEvent(std::istream& in);
+  explicit BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
 
   EventHeader header;
 };
 
 struct AppendBlockEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<AppendBlockEvent>;
+  using UPtr = std::unique_ptr<AppendBlockEvent>;
+  using SPtr = std::shared_ptr<AppendBlockEvent>;
 
   std::string block;
   uint32_t file_id;
 };
 
 struct BeginLoadQueryEvent : AppendBlockEvent {
-  using Ptr = std::shared_ptr<BeginLoadQueryEvent>;
+  using UPtr = std::unique_ptr<BeginLoadQueryEvent>;
+  using SPtr = std::shared_ptr<BeginLoadQueryEvent>;
 };
 
 struct DeleteFileEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<DeleteFileEvent>;
+  using UPtr = std::unique_ptr<DeleteFileEvent>;
+  using SPtr = std::shared_ptr<DeleteFileEvent>;
 
   uint32_t file_id;
 };
 
 struct FormatDescriptionEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<FormatDescriptionEvent>;
+  using UPtr = std::unique_ptr<FormatDescriptionEvent>;
+  using SPtr = std::shared_ptr<FormatDescriptionEvent>;
 
   FormatDescriptionEvent(uint8_t binlog_ver, const char* server_ver);
-  FormatDescriptionEvent(std::istream& in, FormatDescriptionEvent* fde);
+  FormatDescriptionEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
+
+  uint64_t server_version_value() const;
 
   uint32_t created;
   uint16_t binlog_version;
@@ -159,12 +187,26 @@ struct FormatDescriptionEvent : BinlogEvent {
   bool dont_set_created;
   uint8_t common_header_len;
   std::vector<uint8_t> post_header_len;
+  bool has_checksum{true};
 };
 
 struct GtidEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<GtidEvent>;
+protected:
+  static constexpr int ENCODED_FLAG_LENGTH = 1;
+  static constexpr int ENCODED_SID_LENGTH = 16;
+  static constexpr int ENCODED_GNO_LENGTH = 8;
+  static constexpr int LOGICAL_TIMESTAMP_TYPECODE_LENGTH = 1;
+  static constexpr int LOGICAL_TIMESTAMP_LENGTH = 16;
+
+public:
+  using UPtr = std::unique_ptr<GtidEvent>;
+  using SPtr = std::shared_ptr<GtidEvent>;
 
   static constexpr uint64_t kGroupTicketUnset = 0;
+
+  static constexpr int POST_HEADER_LENGTH =
+      ENCODED_FLAG_LENGTH + ENCODED_SID_LENGTH + ENCODED_GNO_LENGTH +
+      LOGICAL_TIMESTAMP_TYPECODE_LENGTH + LOGICAL_TIMESTAMP_LENGTH;
 
   struct GtidInfo {
     int32_t rpl_gtid_sidno;
@@ -194,30 +236,34 @@ struct GtidEvent : BinlogEvent {
 };
 
 struct HeartbeatEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<HeartbeatEvent>;
+  using UPtr = std::unique_ptr<HeartbeatEvent>;
+  using SPtr = std::shared_ptr<HeartbeatEvent>;
 
   std::string log_ident;
 };
 
 struct HeartbeatV2Event : BinlogEvent {
-  using Ptr = std::shared_ptr<HeartbeatV2Event>;
+  using UPtr = std::unique_ptr<HeartbeatV2Event>;
 
   std::string m_log_filename;
   uint64_t m_log_position;
 };
 
 struct IgnorableEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<IgnorableEvent>;
+  using UPtr = std::unique_ptr<IgnorableEvent>;
+  using SPtr = std::shared_ptr<IgnorableEvent>;
 };
 
 struct RowsQueryEvent : IgnorableEvent {
-  using Ptr = std::shared_ptr<RowsQueryEvent>;
+  using UPtr = std::unique_ptr<RowsQueryEvent>;
+  using SPtr = std::shared_ptr<RowsQueryEvent>;
 
   std::string m_rows_query;
 };
 
 struct IncidentEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<IncidentEvent>;
+  using UPtr = std::unique_ptr<IncidentEvent>;
+  using SPtr = std::shared_ptr<IncidentEvent>;
 
   enum class EnumIncident {
     /** No incident */
@@ -233,20 +279,23 @@ struct IncidentEvent : BinlogEvent {
 };
 
 struct IntvarEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<IntvarEvent>;
+  using UPtr = std::unique_ptr<IntvarEvent>;
+  using SPtr = std::shared_ptr<IntvarEvent>;
 
   uint8_t type;
   uint64_t val;
 };
 
 struct PreviousGtidEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<PreviousGtidEvent>;
+  using UPtr = std::unique_ptr<PreviousGtidEvent>;
+  using SPtr = std::shared_ptr<PreviousGtidEvent>;
 
   std::string buf;
 };
 
 struct QueryEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<QueryEvent>;
+  using UPtr = std::unique_ptr<QueryEvent>;
+  using SPtr = std::shared_ptr<QueryEvent>;
 
   enum class Ternary {
     TERNARY_UNSET,
@@ -287,7 +336,8 @@ struct QueryEvent : BinlogEvent {
 };
 
 struct ExecuteLoadQueryEvent : QueryEvent {
-  using Ptr = std::shared_ptr<ExecuteLoadQueryEvent>;
+  using UPtr = std::unique_ptr<ExecuteLoadQueryEvent>;
+  using SPtr = std::shared_ptr<ExecuteLoadQueryEvent>;
 
   enum class LoadDupHandling {
     LOAD_DUP_ERROR = 0,
@@ -303,7 +353,16 @@ struct ExecuteLoadQueryEvent : QueryEvent {
 };
 
 struct RotateEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<RotateEvent>;
+  using UPtr = std::unique_ptr<RotateEvent>;
+  using SPtr = std::shared_ptr<RotateEvent>;
+
+  static constexpr uint32_t DUPNAME = 2;
+  static constexpr uint32_t RELOG = 4;
+
+  RotateEvent(std::string _new_log_ident, uint32_t _flags, uint64_t _pos);
+  RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
 
   std::string new_log_ident;
   uint32_t flags;
@@ -311,14 +370,16 @@ struct RotateEvent : BinlogEvent {
 };
 
 struct RandEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<RandEvent>;
+  using UPtr = std::unique_ptr<RandEvent>;
+  using SPtr = std::shared_ptr<RandEvent>;
 
   unsigned long long seed1;
   unsigned long long seed2;
 };
 
 struct RowsEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<RowsEvent>;
+  using UPtr = std::unique_ptr<RowsEvent>;
+  using SPtr = std::shared_ptr<RowsEvent>;
 
   struct ExtraRowInfo {
     int m_partition_id;
@@ -326,7 +387,13 @@ struct RowsEvent : BinlogEvent {
     unsigned char* m_extra_row_ndb_info;
   };
 
-  ExtraRowInfo m_extra_row_info;
+  explicit RowsEvent(LogEventType type);
+  RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
+
+  /// #TO_CHECK: If the info needed for CDC?
+  // ExtraRowInfo m_extra_row_info;
 
   LogEventType m_type;
   uint64_t m_table_id;
@@ -340,31 +407,51 @@ struct RowsEvent : BinlogEvent {
 };
 
 struct DeleteRowsEvent : RowsEvent {
-  using Ptr = std::shared_ptr<DeleteRowsEvent>;
+  using UPtr = std::unique_ptr<DeleteRowsEvent>;
+  using SPtr = std::shared_ptr<DeleteRowsEvent>;
+
+  DeleteRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
 };
 
 struct UpdateRowsEvent : RowsEvent {
-  using Ptr = std::shared_ptr<UpdateRowsEvent>;
+  using UPtr = std::unique_ptr<UpdateRowsEvent>;
+  using SPtr = std::shared_ptr<UpdateRowsEvent>;
+
+  UpdateRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
 };
 
 struct WriteRowsEvent : RowsEvent {
-  using Ptr = std::shared_ptr<WriteRowsEvent>;
+  using UPtr = std::unique_ptr<WriteRowsEvent>;
+  using SPtr = std::shared_ptr<WriteRowsEvent>;
+
+  WriteRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
 };
 
 struct StopEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<StopEvent>;
+  using UPtr = std::unique_ptr<StopEvent>;
+  using SPtr = std::shared_ptr<StopEvent>;
 };
 
 struct TableMapEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<TableMapEvent>;
+  using UPtr = std::unique_ptr<TableMapEvent>;
+  using SPtr = std::shared_ptr<TableMapEvent>;
 
-  uint64_t m_table_id;
-  uint16_t m_flags;
-  size_t m_data_size;
+  TableMapEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  void show(std::ostream& out = std::cout) const;
+
+  uint64_t m_table_id{0};
+  uint16_t m_flags{0};
+  size_t m_data_size{0};
+  int64_t column_count{0};
   std::string m_dbnam;
-  unsigned long long int m_dblen;
   std::string m_tblnam;
-  unsigned long long int m_tbllen;
   std::string m_coltype;
   std::string m_field_metadata;
   std::string m_null_bits;
@@ -372,7 +459,8 @@ struct TableMapEvent : BinlogEvent {
 };
 
 struct TransactionContextEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<TransactionContextEvent>;
+  using UPtr = std::unique_ptr<TransactionContextEvent>;
+  using SPtr = std::shared_ptr<TransactionContextEvent>;
 
   std::string server_uuid;
   uint32_t thread_id;
@@ -384,7 +472,8 @@ struct TransactionContextEvent : BinlogEvent {
 };
 
 struct TransactionPayloadEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<TransactionPayloadEvent>;
+  using UPtr = std::unique_ptr<TransactionPayloadEvent>;
+  using SPtr = std::shared_ptr<TransactionPayloadEvent>;
 
   enum class CompressionType {
     ZSTD,
@@ -399,11 +488,13 @@ struct TransactionPayloadEvent : BinlogEvent {
 };
 
 struct UnknownEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<UnknownEvent>;
+  using UPtr = std::unique_ptr<UnknownEvent>;
+  using SPtr = std::shared_ptr<UnknownEvent>;
 };
 
 struct UserVarEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<UserVarEvent>;
+  using UPtr = std::unique_ptr<UserVarEvent>;
+  using SPtr = std::shared_ptr<UserVarEvent>;
 
   enum class ValueType {
     INVALID_RESULT = -1, /* not valid for UDFs */
@@ -423,7 +514,8 @@ struct UserVarEvent : BinlogEvent {
 };
 
 struct ViewChangeEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<ViewChangeEvent>;
+  using UPtr = std::unique_ptr<ViewChangeEvent>;
+  using SPtr = std::shared_ptr<ViewChangeEvent>;
 
   static const int ENCODED_VIEW_ID_OFFSET = 0;
   static const int ENCODED_SEQ_NUMBER_OFFSET = 40;
@@ -438,7 +530,8 @@ struct ViewChangeEvent : BinlogEvent {
 };
 
 struct XAPrepareEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<XAPrepareEvent>;
+  using UPtr = std::unique_ptr<XAPrepareEvent>;
+  using SPtr = std::shared_ptr<XAPrepareEvent>;
 
   static const int MY_XIDDATASIZE = 128;
 
@@ -455,7 +548,8 @@ struct XAPrepareEvent : BinlogEvent {
 };
 
 struct XidEvent : BinlogEvent {
-  using Ptr = std::shared_ptr<XidEvent>;
+  using UPtr = std::unique_ptr<XidEvent>;
+  using SPtr = std::shared_ptr<XidEvent>;
 
   uint64_t xid;
 };

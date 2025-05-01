@@ -2,10 +2,61 @@
 
 #include <cassert>
 #include <cstring>
-#include <utils.hpp>
 
-#define READ(value, in) (value = stream_utils::read<decltype(value)>(in))
-#define READ_ARR(value, in) (stream_utils::memcpy((in), (value), sizeof(value)))
+#define READ(value) (value = reader.read<decltype(value)>())
+#define READ_ARR(dest, size) (reader.readCpy(reinterpret_cast<char*>(dest), size))
+#define PEEK(value, ...) (value = reader.peek<decltype(value)>(__VA_ARGS__))
+#define PEEK_ARR(dest, ...) (reader.peekCpy(reinterpret_cast<char*>(dest), __VA_ARGS__))
+
+namespace {
+uint packed_integer_field_size(uint8_t field) {
+  if (field <= 251) return 1;
+  if (field == 252) return 3;
+  if (field == 253) return 4;
+  return 9;
+}
+
+int64_t get_packed_integer(utils::StringBufferReader& reader) {
+  uint8_t prefix;
+  PEEK(prefix);
+  prefix = packed_integer_field_size(prefix);
+
+  uint64_t result = 0;
+
+  if (prefix < 251) {
+    READ_ARR(&result, 1);
+  } else if (prefix == 255) {
+    return (unsigned long)~0;
+  } else if (prefix == 252) {
+    READ_ARR(&result, 2);
+  } else if (prefix == 253) {
+    READ_ARR(&result, 3);
+  } else {
+    READ_ARR(&result, 8);
+  }
+  return result;
+}
+
+uint64_t get_server_version_value(const char* p) {
+  char* r;
+  uint64_t number;
+  uint64_t result = 0;
+  for (unsigned int i = 0; i <= 2; i++) {
+    number = strtoul(p, &r, 10);
+    if (number < 256 && (*r == '.' || i != 0))
+      result = (result * 256) + number;
+    else {
+      result = 0;
+      break;
+    }
+
+    p = r;
+    if (*r == '.') p++;
+  }
+
+  return result;
+}
+} // namespace
 
 namespace mysql_binlog::event {
 
@@ -16,20 +67,36 @@ EventHeader::EventHeader(LogEventType _type) noexcept :
     flags(0),
     type_code(_type) {}
 
-EventHeader::EventHeader(std::istream& in) {
-  READ(when, in);
-  READ(type_code, in);
-  READ(unmasked_server_id, in);
-  READ(data_written, in);
-  READ(log_pos, in);
-  READ(flags, in);
+EventHeader::EventHeader(utils::StringBufferReader& reader) {
+  READ(when);
+  READ(type_code);
+  READ(unmasked_server_id);
+  READ(data_written);
+  READ(log_pos);
+  READ(flags);
 }
 
 BinlogEvent::BinlogEvent(LogEventType _type) :
     header(_type) {}
 
-BinlogEvent::BinlogEvent(std::istream& in) :
-    header(in) {}
+BinlogEvent::BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
+    header(reader) {
+  if (header.type_code != LogEventType::FORMAT_DESCRIPTION_EVENT) {
+    if (fde->has_checksum) {
+      reader.flipEnd(CHECKSUM_CRC32_SIGNATURE_LEN);
+    }
+  }
+}
+
+void BinlogEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << " Header:";
+  LOG_INFO(out) << "                 when: " << header.when;
+  LOG_INFO(out) << "   unmasked_server_id: " << header.unmasked_server_id;
+  LOG_INFO(out) << "         data_written: " << header.data_written;
+  LOG_INFO(out) << "              log_pos: " << header.log_pos;
+  LOG_INFO(out) << "                flags: " << header.flags;
+  LOG_INFO(out) << "            type_code: " << static_cast<int>(header.type_code);
+}
 
 FormatDescriptionEvent::FormatDescriptionEvent(uint8_t _binlog_ver,
                                                const char* _server_ver) :
@@ -37,17 +104,308 @@ FormatDescriptionEvent::FormatDescriptionEvent(uint8_t _binlog_ver,
     created(0),
     binlog_version(_binlog_ver),
     dont_set_created(false) {
-  std::memcpy(server_version, _server_ver, sizeof(server_version));
+  const auto _server_ver_size = std::strlen(_server_ver);
+  std::memset(server_version, 0, sizeof(server_version));
+  std::memcpy(server_version, _server_ver, _server_ver_size);
+
+  common_header_len = LOG_EVENT_HEADER_LEN;
+  static uint8_t server_event_header_length[] = {
+      0,
+      LogEventPostHeaderSize::QUERY_HEADER_LEN,
+      LogEventPostHeaderSize::STOP_HEADER_LEN,
+      LogEventPostHeaderSize::ROTATE_HEADER_LEN,
+      LogEventPostHeaderSize::INTVAR_HEADER_LEN,
+      0,
+      0,
+      0,
+      LogEventPostHeaderSize::APPEND_BLOCK_HEADER_LEN,
+      0,
+      LogEventPostHeaderSize::DELETE_FILE_HEADER_LEN,
+      0,
+      LogEventPostHeaderSize::RAND_HEADER_LEN,
+      LogEventPostHeaderSize::USER_VAR_HEADER_LEN,
+      LogEventPostHeaderSize::FORMAT_DESCRIPTION_HEADER_LEN,
+      LogEventPostHeaderSize::XID_HEADER_LEN,
+      LogEventPostHeaderSize::BEGIN_LOAD_QUERY_HEADER_LEN,
+      LogEventPostHeaderSize::EXECUTE_LOAD_QUERY_HEADER_LEN,
+      LogEventPostHeaderSize::TABLE_MAP_HEADER_LEN,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      LogEventPostHeaderSize::INCIDENT_HEADER_LEN,
+      0,
+      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
+      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
+      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
+      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
+      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
+      GtidEvent::POST_HEADER_LENGTH,
+      GtidEvent::POST_HEADER_LENGTH,
+      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
+      LogEventPostHeaderSize::TRANSACTION_CONTEXT_HEADER_LEN,
+      LogEventPostHeaderSize::VIEW_CHANGE_HEADER_LEN,
+      LogEventPostHeaderSize::XA_PREPARE_HEADER_LEN,
+      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
+      LogEventType::TRANSACTION_PAYLOAD_EVENT,
+      0,
+      0};
+  post_header_len.insert(post_header_len.begin(), server_event_header_length,
+                         server_event_header_length + LOG_EVENT_TYPES);
 }
 
-FormatDescriptionEvent::FormatDescriptionEvent(std::istream& in,
+FormatDescriptionEvent::FormatDescriptionEvent(utils::StringBufferReader& reader,
                                                FormatDescriptionEvent* fde) :
-    BinlogEvent(in) {
-  READ(binlog_version, in);
-  READ_ARR(server_version, in);
-  READ(created, in);
-  READ(common_header_len, in);
-  
+    BinlogEvent(reader, fde),
+    common_header_len(0) {
+  size_t number_of_event_types = 0;
+
+  READ(binlog_version);
+  READ_ARR(server_version, sizeof(server_version));
+  server_version[sizeof(server_version) - 1] = 0;
+  READ(created);
+  dont_set_created = true;
+  READ(common_header_len);
+
+  if (common_header_len < LOG_EVENT_HEADER_LEN) {
+    THROW(std::runtime_error, "Invalid Format_description common header length");
+  }
+
+  size_t available_bytes = reader.available();
+
+  if (server_version_value() >= checksum_version_product) {
+    available_bytes -= BINLOG_CHECKSUM_ALG_DESC_LEN + CHECKSUM_CRC32_SIGNATURE_LEN;
+    has_checksum = true;
+  }
+  number_of_event_types = available_bytes;
+
+  post_header_len.resize(number_of_event_types);
+  reader.readCpy(reinterpret_cast<char*>(post_header_len.data()), post_header_len.size());
+}
+
+void FormatDescriptionEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "FormatDescriptionEvent: ";
+  BinlogEvent::show(out);
+  LOG_INFO(out) << " Other info:";
+  LOG_INFO(out) << "             created: " << created;
+  LOG_INFO(out) << "      binlog_version: " << binlog_version;
+  LOG_INFO(out) << "      server_version: " << server_version;
+  LOG_INFO(out) << "    dont_set_created: " << dont_set_created;
+  LOG_INFO(out) << "   common_header_len: " << static_cast<int>(common_header_len);
+  LOG_INFO(out) << "     post_header_len: " << post_header_len;
+  LOG_INFO(out) << "        has_checksum: " << has_checksum;
+}
+
+uint64_t FormatDescriptionEvent::server_version_value() const {
+  return get_server_version_value(server_version);
+}
+
+RotateEvent::RotateEvent(std::string _new_log_ident, uint32_t _flags, uint64_t _pos) :
+    BinlogEvent(LogEventType::ROTATE_EVENT),
+    new_log_ident(std::move(_new_log_ident)),
+    flags(_flags),
+    pos(_pos) {}
+
+RotateEvent::RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
+    BinlogEvent(reader, fde) {
+  uint8_t post_header_size = fde->post_header_len[LogEventType::ROTATE_EVENT - 1];
+  flags = DUPNAME;
+  if (post_header_size) {
+    READ(pos);
+  } else {
+    pos = 4;
+  }
+  size_t avail_to_read = reader.available();
+  if (avail_to_read == 0) {
+    THROW(std::runtime_error, "The event is too short");
+  }
+
+  if (avail_to_read > ROTATE_EVENT_MAX_FULL_NAME_SIZE - 1) {
+    avail_to_read = ROTATE_EVENT_MAX_FULL_NAME_SIZE - 1;
+  }
+
+  new_log_ident.resize(avail_to_read);
+
+  READ_ARR(new_log_ident.data(), avail_to_read);
+}
+
+void RotateEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "RotateEvent: ";
+  BinlogEvent::show(out);
+  LOG_INFO(out) << " Other info:";
+  LOG_INFO(out) << "   new_log_ident: " << new_log_ident;
+  LOG_INFO(out) << "           flags: " << flags;
+  LOG_INFO(out) << "             pos: " << pos;
+}
+
+RowsEvent::RowsEvent(LogEventType type) :
+    BinlogEvent(type),
+    m_table_id(0),
+    m_width(0),
+    columns_before_image(0),
+    columns_after_image(0),
+    row(0) {}
+
+RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
+    BinlogEvent(reader, fde) {
+  LogEventType type = header.type_code;
+  const auto post_header_len = fde->post_header_len[(int)type - 1];
+  m_type = type;
+
+  if (post_header_len != 6) {
+    READ_ARR(&m_table_id, 6);
+  } else {
+    READ_ARR(&m_table_id, 4);
+  }
+  READ(m_flags);
+
+  /* Rows header len v2*/
+  if (post_header_len == 10) {
+    READ(var_header_len);
+    var_header_len -= 2;
+
+    /* Skips the extra_rows_info */
+    reader.skip(var_header_len);
+  }
+
+  m_width = get_packed_integer(reader);
+
+  if (m_width == 0) {
+    THROW(std::runtime_error, "Invalid length of RowsEvent size");
+  }
+
+  n_bits_len = (m_width + 7) / 8;
+
+  columns_before_image.resize(n_bits_len);
+
+  READ_ARR(columns_before_image.data(), columns_before_image.size());
+
+  if (header.type_code == LogEventType::UPDATE_ROWS_EVENT ||
+      header.type_code == LogEventType::PARTIAL_UPDATE_ROWS_EVENT)
+  {
+    columns_after_image.resize(n_bits_len);
+
+    READ_ARR(columns_after_image.data(), columns_after_image.size());
+  } else {
+    columns_after_image = columns_before_image;
+  }
+
+  size_t data_size = reader.available();
+
+  row.resize(data_size);
+  READ_ARR(row.data(), row.size());
+}
+
+void RowsEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "RowsEvent: ";
+  BinlogEvent::show(out);
+  LOG_INFO(out) << " Other info:";
+  LOG_INFO(out) << "                 m_type: " << static_cast<int>(m_type);
+  LOG_INFO(out) << "             m_table_id: " << m_table_id;
+  LOG_INFO(out) << "                m_flags: " << m_flags;
+  LOG_INFO(out) << "                m_width: " << m_width;
+  LOG_INFO(out) << "             n_bits_len: " << n_bits_len;
+  LOG_INFO(out) << "         var_header_len: " << var_header_len;
+  LOG_INFO(out) << "   columns_before_image: " << columns_before_image;
+  LOG_INFO(out) << "    columns_after_image: " << columns_after_image;
+  LOG_INFO(out) << "                    row: " << row;
+}
+
+DeleteRowsEvent::DeleteRowsEvent(utils::StringBufferReader& reader,
+                                 FormatDescriptionEvent* fde) :
+    RowsEvent(reader, fde) {
+  header.type_code = m_type;
+}
+
+void DeleteRowsEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "DeleteRowsEvent: ";
+  RowsEvent::show(out);
+}
+
+UpdateRowsEvent::UpdateRowsEvent(utils::StringBufferReader& reader,
+                                 FormatDescriptionEvent* fde) :
+    RowsEvent(reader, fde) {
+  header.type_code = m_type;
+}
+
+void UpdateRowsEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "UpdateRowsEvent: ";
+  RowsEvent::show(out);
+}
+
+WriteRowsEvent::WriteRowsEvent(utils::StringBufferReader& reader,
+                               FormatDescriptionEvent* fde) :
+    RowsEvent(reader, fde) {
+  header.type_code = m_type;
+}
+
+void WriteRowsEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "WriteRowsEvent: ";
+  RowsEvent::show(out);
+}
+
+TableMapEvent::TableMapEvent(utils::StringBufferReader& reader,
+                             FormatDescriptionEvent* fde) :
+    BinlogEvent(reader, fde) {
+  m_table_id = 0;
+
+  if (fde->post_header_len[LogEventType::TABLE_MAP_EVENT - 1] == 6) {
+    READ_ARR(&m_table_id, 4);
+  } else {
+    READ_ARR(&m_table_id, 6);
+  }
+  READ(m_flags);
+
+  uint64_t db_name_len = get_packed_integer(reader) + 1;
+
+  m_dbnam.resize(db_name_len);
+  READ_ARR(m_dbnam.data(), m_dbnam.size());
+
+  uint64_t tb_name_len = get_packed_integer(reader) + 1;
+
+  m_tblnam.resize(tb_name_len);
+  READ_ARR(m_tblnam.data(), m_tblnam.size());
+
+  column_count = get_packed_integer(reader);
+
+  m_coltype.resize(column_count);
+  READ_ARR(m_coltype.data(), m_coltype.size());
+
+  if (reader.available() > 0) {
+    const auto meta_data_size = get_packed_integer(reader);
+    if (meta_data_size > (column_count * 4)) {
+      THROW(std::runtime_error, "Invalid size of meta_data part");
+    }
+    const auto null_bytes_count = (column_count + 7) / 8;
+    m_field_metadata.resize(meta_data_size);
+    m_null_bits.resize(null_bytes_count);
+    READ_ARR(m_field_metadata.data(), m_field_metadata.size());
+    READ_ARR(m_null_bits.data(), m_null_bits.size());
+  }
+
+  const auto optional_len = reader.available();
+  if (optional_len > 0) {
+    m_optional_metadata.resize(optional_len);
+    READ_ARR(m_optional_metadata.data(), m_optional_metadata.size());
+  }
+}
+
+void TableMapEvent::show(std::ostream& out) const {
+  LOG_INFO(out) << "TableMapEvent: ";
+  BinlogEvent::show(out);
+  LOG_INFO(out) << " Other info:";
+  LOG_INFO(out) << "            m_table_id: " << m_table_id;
+  LOG_INFO(out) << "               m_flags: " << m_flags;
+  LOG_INFO(out) << "           m_data_size: " << m_data_size;
+  LOG_INFO(out) << "          column_count: " << column_count;
+  LOG_INFO(out) << "               m_dbnam: " << m_dbnam;
+  LOG_INFO(out) << "              m_tblnam: " << m_tblnam;
+  LOG_INFO(out) << "             m_coltype: " << std::string_view(m_coltype);
+  LOG_INFO(out) << "      m_field_metadata: " << std::string_view(m_field_metadata);
+  LOG_INFO(out) << "           m_null_bits: " << std::string_view(m_null_bits);
+  LOG_INFO(out) << "   m_optional_metadata: " << std::string_view(m_optional_metadata);
 }
 
 } // namespace mysql_binlog::event
