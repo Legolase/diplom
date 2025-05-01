@@ -1,4 +1,3 @@
-#include "string_buffer_reader.hpp"
 #include <utils/string_buffer_reader.hpp>
 
 namespace utils {
@@ -14,8 +13,7 @@ StringBufferReader::StringBufferReader(const std::string_view& source) noexcept 
 
 void StringBufferReader::readCpy(char* dest, size_t size) {
   if (size > available()) {
-    throw BadStream(
-        fmt::format("[Error] Attempt to read more than left in {}", CURRENT_POSITION));
+    THROW(BadStream, "Attempt to read more than left");
   }
 
   std::memcpy(dest, source() + pos, size);
@@ -39,8 +37,7 @@ size_t StringBufferReader::available() const noexcept {
 
 void StringBufferReader::flipEnd(size_t length) {
   if (available() < length) {
-    throw BadStream(fmt::format("[Error] Attempt to flip more bytes than available",
-                                CURRENT_POSITION));
+    THROW(BadStream, "Attempt to flip more bytes than available");
   }
 
   std::visit(Overload{
@@ -56,6 +53,14 @@ void StringBufferReader::flipEnd(size_t length) {
 
 size_t StringBufferReader::position() const noexcept {
   return pos;
+}
+
+void StringBufferReader::skip(size_t length) {
+  if (length > available()) {
+    THROW(BadStream, "Attempt to jump beyond the buffer boundaries");
+  }
+
+  pos += length;
 }
 
 const char* StringBufferReader::source() const noexcept {

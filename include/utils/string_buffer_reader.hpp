@@ -101,6 +101,11 @@ public:
   /// @return Current position
   size_t position() const noexcept;
 
+  /// @brief Skips the next `length` bytes.
+  /// @param[in] length The amount to jump forward relative to the current position.
+  /// @throws `BadStream` Thrown if `length > available()`
+  void skip(size_t length);
+
 private:
   /// @brief Buffer begining
   /// @returns Pointer to buffer begining
