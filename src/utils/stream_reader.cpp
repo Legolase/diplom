@@ -8,8 +8,7 @@ void StreamReader::readCpy(char* dest, size_t size) {
   const auto read_size = stream.readsome(dest, size);
 
   if (size != read_size) {
-    throw BadStream(fmt::format("[Error] Attempt to read more than possible in {}",
-                                CURRENT_POSITION));
+    THROW(BadStream, "Attempt to read more than possible");
   }
 }
 
