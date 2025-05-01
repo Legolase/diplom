@@ -42,7 +42,6 @@ CREATE TABLE `e_store`.`products`(
     `name` VARCHAR(250) NOT NULL ,
     `brand_id` INT UNSIGNED NOT NULL ,
     `category_id` INT UNSIGNED NOT NULL ,
-    `attributes` JSON,
     PRIMARY KEY(`id`) ,
     INDEX `CATEGORY_ID`(`category_id` ASC) ,
     INDEX `BRAND_ID`(`brand_id` ASC) ,
@@ -54,301 +53,166 @@ CREATE TABLE `e_store`.`products`(
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Prime' ,
     '1' ,
-    '1' ,
-    '{"screen": "50 inch", "resolution": "2048 x 1152 pixels", "ports": {"hdmi": 1, "usb": 3}, "speakers": {"left": "10 watt", "right": "10 watt"}}'
+    '1'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Octoview' ,
     '1' ,
-    '1' ,
-    '{"screen": "40 inch", "resolution": "1920 x 1080 pixels", "ports": {"hdmi": 1, "usb": 2}, "speakers": {"left": "10 watt", "right": "10 watt"}}'
+    '1'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Dreamer' ,
     '1' ,
-    '1' ,
-    '{"screen": "30 inch", "resolution": "1600 x 900 pixles", "ports": {"hdmi": 1, "usb": 1}, "speakers": {"left": "10 watt", "right": "10 watt"}}'
+    '1'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Bravia' ,
     '1' ,
-    '1' ,
-    '{"screen": "25 inch", "resolution": "1366 x 768 pixels", "ports": {"hdmi": 1, "usb": 0}, "speakers": {"left": "5 watt", "right": "5 watt"}}'
+    '1'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Proton' ,
     '1' ,
-    '1' ,
-    '{"screen": "20 inch", "resolution": "1280 x 720 pixels", "ports": {"hdmi": 0, "usb": 0}, "speakers": {"left": "5 watt", "right": "5 watt"}}'
+    '1'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Desire' ,
     '2' ,
-    '2' ,
-    JSON_OBJECT(
-        "network" ,
-        JSON_ARRAY("GSM" , "CDMA" , "HSPA" , "EVDO") ,
-        "body" ,
-        "5.11 x 2.59 x 0.46 inches" ,
-        "weight" ,
-        "143 grams" ,
-        "sim" ,
-        "Micro-SIM" ,
-        "display" ,
-        "4.5 inches" ,
-        "resolution" ,
-        "720 x 1280 pixels" ,
-        "os" ,
-        "Android Jellybean v4.3"
-    )
+    '2'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Passion' ,
     '2' ,
-    '2' ,
-    JSON_OBJECT(
-        "network" ,
-        JSON_ARRAY("GSM" , "CDMA" , "HSPA") ,
-        "body" ,
-        "6.11 x 3.59 x 0.46 inches" ,
-        "weight" ,
-        "145 grams" ,
-        "sim" ,
-        "Micro-SIM" ,
-        "display" ,
-        "4.5 inches" ,
-        "resolution" ,
-        "720 x 1280 pixels" ,
-        "os" ,
-        "Android Jellybean v4.3"
-    )
+    '2'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Emotion' ,
     '2' ,
-    '2' ,
-    JSON_OBJECT(
-        "network" ,
-        JSON_ARRAY("GSM" , "CDMA" , "EVDO") ,
-        "body" ,
-        "5.50 x 2.50 x 0.50 inches" ,
-        "weight" ,
-        "125 grams" ,
-        "sim" ,
-        "Micro-SIM" ,
-        "display" ,
-        "5.00 inches" ,
-        "resolution" ,
-        "720 x 1280 pixels" ,
-        "os" ,
-        "Android KitKat v4.3"
-    )
+    '2'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Sensation' ,
     '2' ,
-    '2' ,
-    JSON_OBJECT(
-        "network" ,
-        JSON_ARRAY("GSM" , "HSPA" , "EVDO") ,
-        "body" ,
-        "4.00 x 2.00 x 0.75 inches" ,
-        "weight" ,
-        "150 grams" ,
-        "sim" ,
-        "Micro-SIM" ,
-        "display" ,
-        "3.5 inches" ,
-        "resolution" ,
-        "720 x 1280 pixels" ,
-        "os" ,
-        "Android Lollipop v4.3"
-    )
+    '2'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Joy' ,
     '2' ,
-    '2' ,
-    JSON_OBJECT(
-        "network" ,
-        JSON_ARRAY("CDMA" , "HSPA" , "EVDO") ,
-        "body" ,
-        "7.00 x 3.50 x 0.25 inches" ,
-        "weight" ,
-        "250 grams" ,
-        "sim" ,
-        "Micro-SIM" ,
-        "display" ,
-        "6.5 inches" ,
-        "resolution" ,
-        "1920 x 1080 pixels" ,
-        "os" ,
-        "Android Marshmallow v4.3"
-    )
+    '2'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Explorer' ,
     '3' ,
-    '3' ,
-    JSON_MERGE_PRESERVE(
-        '{"sensor_type": "CMOS"}' ,
-        '{"processor": "Digic DV III"}' ,
-        '{"scanning_system": "progressive"}' ,
-        '{"mount_type": "PL"}' ,
-        '{"monitor_type": "LCD"}'
-    )
+    '3'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Runner' ,
     '3' ,
-    '3' ,
-    JSON_MERGE_PRESERVE(
-        JSON_OBJECT("sensor_type" , "CMOS") ,
-        JSON_OBJECT("processor" , "Digic DV II") ,
-        JSON_OBJECT("scanning_system" , "progressive") ,
-        JSON_OBJECT("mount_type" , "PL") ,
-        JSON_OBJECT("monitor_type" , "LED")
-    )
+    '3'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Traveler' ,
     '3' ,
-    '3' ,
-    JSON_MERGE_PRESERVE(
-        JSON_OBJECT("sensor_type" , "CMOS") ,
-        '{"processor": "Digic DV II"}' ,
-        '{"scanning_system": "progressive"}' ,
-        '{"mount_type": "PL"}' ,
-        '{"monitor_type": "LCD"}'
-    )
+    '3'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Walker' ,
     '3' ,
-    '3' ,
-    JSON_MERGE_PRESERVE(
-        '{"sensor_type": "CMOS"}' ,
-        '{"processor": "Digic DV I"}' ,
-        '{"scanning_system": "progressive"}' ,
-        '{"mount_type": "PL"}' ,
-        '{"monitor_type": "LED"}'
-    )
+    '3'
 );
 
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'Jumper' ,
     '3' ,
-    '3' ,
-    JSON_MERGE_PRESERVE(
-        '{"sensor_type": "CMOS"}' ,
-        '{"processor": "Digic DV I"}' ,
-        '{"scanning_system": "progressive"}' ,
-        '{"mount_type": "PL"}' ,
-        '{"monitor_type": "LCD"}'
-    )
+    '3'
 );
 
 
@@ -356,12 +220,10 @@ VALUES(
 INSERT INTO `e_store`.`products`(
     `name` ,
     `brand_id` ,
-    `category_id` ,
-    `attributes`
+    `category_id`
 )
 VALUES(
     'I am nu;;' ,
     '3' ,
-    '3' ,
-    NULL
+    '3'
 );
