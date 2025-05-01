@@ -22,6 +22,7 @@
                 // "-O2",
                 // source
                 "${workspaceFolder}/src/main.cpp",
+                "${workspaceFolder}/src/defines.cpp",
                 "${workspaceFolder}/src/**/*.cpp",
 
                 // source gtest
@@ -36,7 +37,7 @@
                 "${workspaceFolder}/build/main"
             ],
             "options": {
-                "cwd": "${fileDirname}"
+                "cwd": "${workspaceFolder}"
             },
             "problemMatcher": [
                 "$gcc"
@@ -70,6 +71,7 @@
                 // "-O2",
                 // source
                 "${workspaceFolder}/test/test.cpp",
+                "${workspaceFolder}/src/defines.cpp",
                 "${workspaceFolder}/src/**/*.cpp",
 
                 // source gtest
