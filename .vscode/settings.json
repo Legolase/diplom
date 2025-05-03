@@ -136,6 +136,35 @@
       "database": "e_store",
       "username": "root",
       "askForPassword": true
+    },
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MariaDB",
+      "name": "mariadb",
+      "database": "e_store",
+      "username": "nikita",
+      "password": "biba"
+    },
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MariaDB",
+      "name": "mariadb-root",
+      "database": "e_store",
+      "username": "root",
+      "askForPassword": true
     }
-  ]
+  ],
+  "makefile.makefilePath": "build/default/Makefile"
 }

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-sudo docker exec -it mysql_db bash
+sudo docker exec -it dbms_container bash

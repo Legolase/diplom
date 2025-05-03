@@ -1,3 +1,3 @@
 #!/bin/bash
 
-sudo docker image build -t mysql-bl .
+sudo docker image build -t dbms_image .
