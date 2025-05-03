@@ -9,14 +9,16 @@
 #define PEEK_ARR(dest, ...) (reader.peekCpy(reinterpret_cast<char*>(dest), __VA_ARGS__))
 
 namespace {
-uint packed_integer_field_size(uint8_t field) {
+uint packed_integer_field_size(uint8_t field)
+{
   if (field <= 251) return 1;
   if (field == 252) return 3;
   if (field == 253) return 4;
   return 9;
 }
 
-int64_t get_packed_integer(utils::StringBufferReader& reader) {
+int64_t get_packed_integer(utils::StringBufferReader& reader)
+{
   uint8_t prefix;
   PEEK(prefix);
   prefix = packed_integer_field_size(prefix);
@@ -37,7 +39,8 @@ int64_t get_packed_integer(utils::StringBufferReader& reader) {
   return result;
 }
 
-uint64_t get_server_version_value(const char* p) {
+uint64_t get_server_version_value(const char* p)
+{
   char* r;
   uint64_t number;
   uint64_t result = 0;
@@ -65,9 +68,12 @@ EventHeader::EventHeader(LogEventType _type) noexcept :
     data_written(0),
     log_pos(0),
     flags(0),
-    type_code(_type) {}
+    type_code(_type)
+{
+}
 
-EventHeader::EventHeader(utils::StringBufferReader& reader) {
+EventHeader::EventHeader(utils::StringBufferReader& reader)
+{
   READ(when);
   READ(type_code);
   READ(unmasked_server_id);
@@ -77,10 +83,13 @@ EventHeader::EventHeader(utils::StringBufferReader& reader) {
 }
 
 BinlogEvent::BinlogEvent(LogEventType _type) :
-    header(_type) {}
+    header(_type)
+{
+}
 
 BinlogEvent::BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
-    header(reader) {
+    header(reader)
+{
   if (header.type_code != LogEventType::FORMAT_DESCRIPTION_EVENT) {
     if (fde->has_checksum) {
       reader.flipEnd(CHECKSUM_CRC32_SIGNATURE_LEN);
@@ -88,7 +97,8 @@ BinlogEvent::BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEve
   }
 }
 
-void BinlogEvent::show(std::ostream& out) const {
+void BinlogEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << " Header:";
   LOG_INFO(out) << "                 when: " << header.when;
   LOG_INFO(out) << "   unmasked_server_id: " << header.unmasked_server_id;
@@ -98,68 +108,76 @@ void BinlogEvent::show(std::ostream& out) const {
   LOG_INFO(out) << "            type_code: " << static_cast<int>(header.type_code);
 }
 
-FormatDescriptionEvent::FormatDescriptionEvent(uint8_t _binlog_ver,
-                                               const char* _server_ver) :
+FormatDescriptionEvent::FormatDescriptionEvent(
+    uint8_t _binlog_ver, const char* _server_ver
+) :
     BinlogEvent(LogEventType::FORMAT_DESCRIPTION_EVENT),
     created(0),
     binlog_version(_binlog_ver),
-    dont_set_created(false) {
+    dont_set_created(false)
+{
   const auto _server_ver_size = std::strlen(_server_ver);
   std::memset(server_version, 0, sizeof(server_version));
   std::memcpy(server_version, _server_ver, _server_ver_size);
 
   common_header_len = LOG_EVENT_HEADER_LEN;
-  static uint8_t server_event_header_length[] = {
-      0,
-      LogEventPostHeaderSize::QUERY_HEADER_LEN,
-      LogEventPostHeaderSize::STOP_HEADER_LEN,
-      LogEventPostHeaderSize::ROTATE_HEADER_LEN,
-      LogEventPostHeaderSize::INTVAR_HEADER_LEN,
-      0,
-      0,
-      0,
-      LogEventPostHeaderSize::APPEND_BLOCK_HEADER_LEN,
-      0,
-      LogEventPostHeaderSize::DELETE_FILE_HEADER_LEN,
-      0,
-      LogEventPostHeaderSize::RAND_HEADER_LEN,
-      LogEventPostHeaderSize::USER_VAR_HEADER_LEN,
-      LogEventPostHeaderSize::FORMAT_DESCRIPTION_HEADER_LEN,
-      LogEventPostHeaderSize::XID_HEADER_LEN,
-      LogEventPostHeaderSize::BEGIN_LOAD_QUERY_HEADER_LEN,
-      LogEventPostHeaderSize::EXECUTE_LOAD_QUERY_HEADER_LEN,
-      LogEventPostHeaderSize::TABLE_MAP_HEADER_LEN,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      LogEventPostHeaderSize::INCIDENT_HEADER_LEN,
-      0,
-      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
-      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
-      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
-      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
-      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
-      GtidEvent::POST_HEADER_LENGTH,
-      GtidEvent::POST_HEADER_LENGTH,
-      LogEventPostHeaderSize::IGNORABLE_HEADER_LEN,
-      LogEventPostHeaderSize::TRANSACTION_CONTEXT_HEADER_LEN,
-      LogEventPostHeaderSize::VIEW_CHANGE_HEADER_LEN,
-      LogEventPostHeaderSize::XA_PREPARE_HEADER_LEN,
-      LogEventPostHeaderSize::ROWS_HEADER_LEN_V2,
-      LogEventType::TRANSACTION_PAYLOAD_EVENT,
-      0,
-      0};
-  post_header_len.insert(post_header_len.begin(), server_event_header_length,
-                         server_event_header_length + LOG_EVENT_TYPES);
+  post_header_len.resize(LOG_EVENT_TYPES);
+
+  // Using to set check than all events size were initialized
+  std::memset(post_header_len.data(), 255, post_header_len.size());
+
+  post_header_len[START_EVENT_V3 - 1] = START_V3_HEADER_LEN;
+  post_header_len[QUERY_EVENT - 1] = QUERY_HEADER_LEN;
+  post_header_len[STOP_EVENT - 1] = STOP_HEADER_LEN;
+  post_header_len[ROTATE_EVENT - 1] = ROTATE_HEADER_LEN;
+  post_header_len[INTVAR_EVENT - 1] = INTVAR_HEADER_LEN;
+  //>>>>>>
+  post_header_len[LOAD_EVENT - 1] = LOAD_HEADER_LEN;
+  post_header_len[SLAVE_EVENT - 1] = SLAVE_HEADER_LEN;
+  post_header_len[CREATE_FILE_EVENT - 1] = CREATE_FILE_HEADER_LEN;
+  post_header_len[APPEND_BLOCK_EVENT - 1] = APPEND_BLOCK_HEADER_LEN;
+  post_header_len[EXEC_LOAD_EVENT - 1] = EXEC_LOAD_HEADER_LEN;
+  post_header_len[DELETE_FILE_EVENT - 1] = DELETE_FILE_HEADER_LEN;
+  post_header_len[NEW_LOAD_EVENT - 1] = NEW_LOAD_HEADER_LEN;
+  post_header_len[RAND_EVENT - 1] = RAND_HEADER_LEN;
+  post_header_len[USER_VAR_EVENT - 1] = USER_VAR_HEADER_LEN;
+  post_header_len[FORMAT_DESCRIPTION_EVENT - 1] = FORMAT_DESCRIPTION_HEADER_LEN;
+  post_header_len[XID_EVENT - 1] = XID_HEADER_LEN;
+  post_header_len[XA_PREPARE_LOG_EVENT - 1] = XA_PREPARE_HEADER_LEN;
+  post_header_len[BEGIN_LOAD_QUERY_EVENT - 1] = BEGIN_LOAD_QUERY_HEADER_LEN;
+  post_header_len[EXECUTE_LOAD_QUERY_EVENT - 1] = EXECUTE_LOAD_QUERY_HEADER_LEN;
+  post_header_len[PRE_GA_WRITE_ROWS_EVENT - 1] = 0;
+  post_header_len[PRE_GA_UPDATE_ROWS_EVENT - 1] = 0;
+  post_header_len[PRE_GA_DELETE_ROWS_EVENT - 1] = 0;
+  post_header_len[TABLE_MAP_EVENT - 1] = TABLE_MAP_HEADER_LEN;
+  post_header_len[WRITE_ROWS_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+  post_header_len[UPDATE_ROWS_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+  post_header_len[DELETE_ROWS_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+  post_header_len[INCIDENT_EVENT - 1] = INCIDENT_HEADER_LEN;
+  post_header_len[HEARTBEAT_LOG_EVENT - 1] = 0;
+  post_header_len[IGNORABLE_LOG_EVENT - 1] = 0;
+  post_header_len[ROWS_QUERY_LOG_EVENT - 1] = 0;
+  post_header_len[GTID_LOG_EVENT - 1] = 0;
+  post_header_len[ANONYMOUS_GTID_LOG_EVENT - 1] = 0;
+  post_header_len[PREVIOUS_GTIDS_LOG_EVENT - 1] = 0;
+  post_header_len[TRANSACTION_CONTEXT_EVENT - 1] = 0;
+  post_header_len[VIEW_CHANGE_EVENT - 1] = 0;
+  post_header_len[XA_PREPARE_LOG_EVENT - 1] = 0;
+  post_header_len[PARTIAL_UPDATE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[TRANSACTION_PAYLOAD_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[HEARTBEAT_LOG_EVENT_V2 - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[WRITE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[UPDATE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[DELETE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  
 }
 
-FormatDescriptionEvent::FormatDescriptionEvent(utils::StringBufferReader& reader,
-                                               FormatDescriptionEvent* fde) :
+FormatDescriptionEvent::FormatDescriptionEvent(
+    utils::StringBufferReader& reader, FormatDescriptionEvent* fde
+) :
     BinlogEvent(reader, fde),
-    common_header_len(0) {
+    common_header_len(0)
+{
   size_t number_of_event_types = 0;
 
   READ(binlog_version);
@@ -182,10 +200,11 @@ FormatDescriptionEvent::FormatDescriptionEvent(utils::StringBufferReader& reader
   number_of_event_types = available_bytes;
 
   post_header_len.resize(number_of_event_types);
-  reader.readCpy(reinterpret_cast<char*>(post_header_len.data()), post_header_len.size());
+  READ_ARR(post_header_len.data(), post_header_len.size());
 }
 
-void FormatDescriptionEvent::show(std::ostream& out) const {
+void FormatDescriptionEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "FormatDescriptionEvent: ";
   BinlogEvent::show(out);
   LOG_INFO(out) << " Other info:";
@@ -198,7 +217,8 @@ void FormatDescriptionEvent::show(std::ostream& out) const {
   LOG_INFO(out) << "        has_checksum: " << has_checksum;
 }
 
-uint64_t FormatDescriptionEvent::server_version_value() const {
+uint64_t FormatDescriptionEvent::server_version_value() const
+{
   return get_server_version_value(server_version);
 }
 
@@ -206,10 +226,13 @@ RotateEvent::RotateEvent(std::string _new_log_ident, uint32_t _flags, uint64_t _
     BinlogEvent(LogEventType::ROTATE_EVENT),
     new_log_ident(std::move(_new_log_ident)),
     flags(_flags),
-    pos(_pos) {}
+    pos(_pos)
+{
+}
 
 RotateEvent::RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
-    BinlogEvent(reader, fde) {
+    BinlogEvent(reader, fde)
+{
   uint8_t post_header_size = fde->post_header_len[LogEventType::ROTATE_EVENT - 1];
   flags = DUPNAME;
   if (post_header_size) {
@@ -231,7 +254,8 @@ RotateEvent::RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEve
   READ_ARR(new_log_ident.data(), avail_to_read);
 }
 
-void RotateEvent::show(std::ostream& out) const {
+void RotateEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "RotateEvent: ";
   BinlogEvent::show(out);
   LOG_INFO(out) << " Other info:";
@@ -246,10 +270,13 @@ RowsEvent::RowsEvent(LogEventType type) :
     m_width(0),
     columns_before_image(0),
     columns_after_image(0),
-    row(0) {}
+    row(0)
+{
+}
 
 RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
-    BinlogEvent(reader, fde) {
+    BinlogEvent(reader, fde)
+{
   LogEventType type = header.type_code;
   const auto post_header_len = fde->post_header_len[(int)type - 1];
   m_type = type;
@@ -283,6 +310,7 @@ RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* 
   READ_ARR(columns_before_image.data(), columns_before_image.size());
 
   if (header.type_code == LogEventType::UPDATE_ROWS_EVENT ||
+      header.type_code == LogEventType::UPDATE_ROWS_EVENT_V1 ||
       header.type_code == LogEventType::PARTIAL_UPDATE_ROWS_EVENT)
   {
     columns_after_image.resize(n_bits_len);
@@ -298,7 +326,8 @@ RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* 
   READ_ARR(row.data(), row.size());
 }
 
-void RowsEvent::show(std::ostream& out) const {
+void RowsEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "RowsEvent: ";
   BinlogEvent::show(out);
   LOG_INFO(out) << " Other info:";
@@ -313,42 +342,53 @@ void RowsEvent::show(std::ostream& out) const {
   LOG_INFO(out) << "                    row: " << row;
 }
 
-DeleteRowsEvent::DeleteRowsEvent(utils::StringBufferReader& reader,
-                                 FormatDescriptionEvent* fde) :
-    RowsEvent(reader, fde) {
+DeleteRowsEvent::DeleteRowsEvent(
+    utils::StringBufferReader& reader, FormatDescriptionEvent* fde
+) :
+    RowsEvent(reader, fde)
+{
   header.type_code = m_type;
 }
 
-void DeleteRowsEvent::show(std::ostream& out) const {
+void DeleteRowsEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "DeleteRowsEvent: ";
   RowsEvent::show(out);
 }
 
-UpdateRowsEvent::UpdateRowsEvent(utils::StringBufferReader& reader,
-                                 FormatDescriptionEvent* fde) :
-    RowsEvent(reader, fde) {
+UpdateRowsEvent::UpdateRowsEvent(
+    utils::StringBufferReader& reader, FormatDescriptionEvent* fde
+) :
+    RowsEvent(reader, fde)
+{
   header.type_code = m_type;
 }
 
-void UpdateRowsEvent::show(std::ostream& out) const {
+void UpdateRowsEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "UpdateRowsEvent: ";
   RowsEvent::show(out);
 }
 
-WriteRowsEvent::WriteRowsEvent(utils::StringBufferReader& reader,
-                               FormatDescriptionEvent* fde) :
-    RowsEvent(reader, fde) {
+WriteRowsEvent::WriteRowsEvent(
+    utils::StringBufferReader& reader, FormatDescriptionEvent* fde
+) :
+    RowsEvent(reader, fde)
+{
   header.type_code = m_type;
 }
 
-void WriteRowsEvent::show(std::ostream& out) const {
+void WriteRowsEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "WriteRowsEvent: ";
   RowsEvent::show(out);
 }
 
-TableMapEvent::TableMapEvent(utils::StringBufferReader& reader,
-                             FormatDescriptionEvent* fde) :
-    BinlogEvent(reader, fde) {
+TableMapEvent::TableMapEvent(
+    utils::StringBufferReader& reader, FormatDescriptionEvent* fde
+) :
+    BinlogEvent(reader, fde)
+{
   m_table_id = 0;
 
   if (fde->post_header_len[LogEventType::TABLE_MAP_EVENT - 1] == 6) {
@@ -392,7 +432,8 @@ TableMapEvent::TableMapEvent(utils::StringBufferReader& reader,
   }
 }
 
-void TableMapEvent::show(std::ostream& out) const {
+void TableMapEvent::show(std::ostream& out) const
+{
   LOG_INFO(out) << "TableMapEvent: ";
   BinlogEvent::show(out);
   LOG_INFO(out) << " Other info:";

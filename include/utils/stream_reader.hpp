@@ -27,7 +27,8 @@ struct StreamReader {
   /// read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T read() {
+  T read()
+  {
     T value;
 
     readCpy(reinterpret_cast<char*>(&value), sizeof(value));
@@ -44,7 +45,8 @@ struct StreamReader {
   /// available to read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T peek(size_t offset = 0) {
+  T peek(size_t offset = 0)
+  {
     T value;
 
     peekCpy(reinterpret_cast<char*>(&value), offset, sizeof(value));
@@ -63,7 +65,7 @@ struct StreamReader {
   /// @param[in] size Size of required sequence
   void peekCpy(char* dest, size_t offset, size_t size);
 
-private:
+  private:
   /// @brief The stream from which to read binary data
   std::istream& stream;
 };

@@ -2,9 +2,12 @@
 
 namespace utils {
 StreamReader::StreamReader(std::istream& in) noexcept :
-    stream(in) {}
+    stream(in)
+{
+}
 
-void StreamReader::readCpy(char* dest, size_t size) {
+void StreamReader::readCpy(char* dest, size_t size)
+{
   const auto read_size = stream.readsome(dest, size);
 
   if (size != read_size) {
@@ -12,7 +15,8 @@ void StreamReader::readCpy(char* dest, size_t size) {
   }
 }
 
-void StreamReader::peekCpy(char* dest, size_t offset, size_t size) {
+void StreamReader::peekCpy(char* dest, size_t offset, size_t size)
+{
   const auto start_pos = stream.tellg();
 
   stream.seekg(offset, std::ios::cur);

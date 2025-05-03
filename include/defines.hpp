@@ -14,14 +14,16 @@
   (fmt::format(": {}:{} {}(...): ", __FILENAME__, __LINE__, __FUNCTION__))
 
 #define THROW(exception_type, message)                                                   \
-  (throw (exception_type)(fmt::format("{}{}{}", #exception_type, CURRENT_POSITION,       \
-                                      (message))))
+  (throw (exception_type)(fmt::format(                                                   \
+      "{}{}{}", #exception_type, CURRENT_POSITION, (message)                             \
+  )))
 
 namespace defines_details {
 
 template <typename T>
   requires std::is_convertible_v<T, char> || std::is_convertible_v<T, unsigned char>
-std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec) {
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec)
+{
   out << std::setfill('0');
   for (const auto& elem : vec) {
     out << "[" << std::setw(2) << std::hex << std::uppercase << static_cast<int>(elem)
@@ -39,7 +41,8 @@ struct LogStreamer {
   LogStreamer(LogStreamer&& other) noexcept;
 
   template <typename T>
-  LogStreamer& operator<<(T&& value) {
+  LogStreamer& operator<<(T&& value)
+  {
     if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
       return print(std::forward<T>(value));
     } else {
@@ -49,7 +52,7 @@ struct LogStreamer {
     return *this;
   }
 
-private:
+  private:
   LogStreamer& print(const std::string_view& str_view);
 
   std::ostream& out;

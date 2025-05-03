@@ -14,10 +14,12 @@ BraceWrapping:
   AfterControlStatement: MultiLine
   SplitEmptyFunction: true
   BeforeElse: false
+  AfterFunction: true
 ColumnLimit: 90
 DerivePointerAlignment: false
 Language: Cpp
 PointerAlignment: Left
 IndentAccessModifiers: false
-AccessModifierOffset: -2
+AccessModifierOffset: 0
 AllowShortLambdasOnASingleLine: None
+AlignAfterOpenBracket: BlockIndent

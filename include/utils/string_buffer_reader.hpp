@@ -28,7 +28,7 @@ namespace utils {
 class StringBufferReader {
   using storage_t = std::variant<std::string, std::string_view>;
 
-public:
+  public:
   /**
    * Creates a stream instance with a copy of the source string. Useful when you don't
    * have permission to manage the allocated memory.
@@ -53,7 +53,8 @@ public:
   /// read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T read() {
+  T read()
+  {
     T value;
     readCpy(reinterpret_cast<char*>(&value), sizeof(value));
 
@@ -69,7 +70,8 @@ public:
   /// available to read
   template <typename T>
     requires std::is_default_constructible_v<T>
-  T peek(size_t offset = 0) {
+  T peek(size_t offset = 0)
+  {
     T value;
 
     peekCpy(reinterpret_cast<char*>(&value), offset, sizeof(value));
@@ -106,7 +108,7 @@ public:
   /// @throws `BadStream` Thrown if `length > available()`
   void skip(size_t length);
 
-private:
+  private:
   /// @brief Buffer begining
   /// @returns Pointer to buffer begining
   const char* source() const noexcept;
