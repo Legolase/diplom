@@ -165,6 +165,5 @@
       "username": "root",
       "askForPassword": true
     }
-  ],
-  "makefile.makefilePath": "build/default/Makefile"
+  ]
 }
