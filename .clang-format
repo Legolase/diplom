@@ -12,7 +12,7 @@ BraceWrapping:
   AfterClass: false
   AfterStruct: false
   AfterControlStatement: MultiLine
-  SplitEmptyFunction: true
+  SplitEmptyFunction: false
   BeforeElse: false
   AfterFunction: true
 ColumnLimit: 90
@@ -20,6 +20,8 @@ DerivePointerAlignment: false
 Language: Cpp
 PointerAlignment: Left
 IndentAccessModifiers: false
-AccessModifierOffset: 0
+AccessModifierOffset: -2
 AllowShortLambdasOnASingleLine: None
 AlignAfterOpenBracket: BlockIndent
+SpaceAfterTemplateKeyword: false
+Cpp11BracedListStyle: false
