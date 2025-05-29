@@ -7,16 +7,6 @@
 #include <utils/stream_reader.hpp>
 #include <utils/string_buffer_reader.hpp>
 
-// template <typename T>
-// class TypeHolder {
-//   template<typename... Args>
-//   requires std::isco
-//   TypeHolder()
-
-// private:
-//   alignas(T) std::byte storage[sizeof(T)];
-// };
-
 TEST(StringBufferReader, Test1) {
   using namespace utils;
 
@@ -242,9 +232,9 @@ TEST(StreamReader, All) {
 
 TEST(BinlogReader, FormatDescriptionEvent) {
   const char* file_path = "./binlog/mysql-bin.000003";
-  std::vector<mysql_binlog::event::BinlogEvent::UPtr> v;
+  std::vector<binlog::event::BinlogEvent::UPtr> v;
 
-  mysql_binlog::reader::read(file_path, v);
+  binlog::reader::read(file_path, v);
 }
 
 int main(int argc, char** argv) {
