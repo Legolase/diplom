@@ -20,7 +20,7 @@
 
 namespace defines_details {
 
-template <typename T>
+template<typename T>
   requires std::is_convertible_v<T, char> || std::is_convertible_v<T, unsigned char>
 std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec)
 {
@@ -33,14 +33,20 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec)
   return out;
 }
 
+struct LogStreamer;
+
+LogStreamer log_info_impl(std::ostream& out = std::cout);
+LogStreamer log_debug_impl(std::ostream& out = std::cout);
+LogStreamer log_warning_impl(std::ostream& out = std::cout);
+LogStreamer log_error_impl(std::ostream& out = std::cerr);
+
 struct LogStreamer {
   explicit LogStreamer(std::ostream& out_) noexcept;
   ~LogStreamer();
 
-  LogStreamer(LogStreamer& other) noexcept;
   LogStreamer(LogStreamer&& other) noexcept;
 
-  template <typename T>
+  template<typename T>
   LogStreamer& operator<<(T&& value)
   {
     if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
@@ -52,11 +58,18 @@ struct LogStreamer {
     return *this;
   }
 
-  private:
+private:
+  friend LogStreamer log_info_impl(std::ostream&);
+  friend LogStreamer log_debug_impl(std::ostream&);
+  friend LogStreamer log_warning_impl(std::ostream&);
+  friend LogStreamer log_error_impl(std::ostream&);
+
+  LogStreamer(LogStreamer& other) noexcept;
+
   LogStreamer& print(const std::string_view& str_view);
 
   std::ostream& out;
-  bool holded{true};
+  bool holded{ true };
 };
 
 static_assert(std::is_copy_assignable_v<LogStreamer> == false);
@@ -64,13 +77,14 @@ static_assert(std::is_copy_constructible_v<LogStreamer> == false);
 static_assert(std::is_move_assignable_v<LogStreamer> == false);
 static_assert(std::is_move_constructible_v<LogStreamer>);
 
-LogStreamer log_info_impl(std::ostream& out = std::cout);
-LogStreamer log_warning_impl(std::ostream& out = std::cout);
-LogStreamer log_error_impl(std::ostream& out = std::cerr);
-
 } // namespace defines_details
 
 #define LOG_INFO(...) (defines_details::log_info_impl(__VA_ARGS__))
+#ifndef NDEBUG
+#define LOG_DEBUG(...) (defines_details::log_debug_impl(__VA_ARGS__))
+#else
+#define LOG_DEBUG(...) ()
+#endif
 #define LOG_WARNING(...) (defines_details::log_warning_impl(__VA_ARGS__))
 #define LOG_ERROR(...) (defines_details::log_error_impl(__VA_ARGS__))
 
