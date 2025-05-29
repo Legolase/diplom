@@ -42,7 +42,7 @@ struct TableDiff {
   std::vector<uint16_t> column_primary_key_list;
   std::string column_signedness;
   std::vector<uint8_t> row;
-  int64_t width{ 0 };
+  int64_t width{0};
 };
 
 struct DBBufferSource final : BufferSourceI {
@@ -63,7 +63,7 @@ private:
   MYSQL conn;
   MYSQL_RPL rpl;
   binlog::event::FormatDescriptionEvent fde;
-  std::optional<std::string> file_path_opt{ std::nullopt };
+  std::optional<std::string> file_path_opt{std::nullopt};
 };
 
 struct EventSource final : EventSourceI {
@@ -108,6 +108,15 @@ private:
     utils::StringBufferReader row_r;
     utils::BitBufferReader<utils::BitOrder::BIG_END> signedness_r;
     const TableDiff& data;
+
+    struct CachedData {
+      std::vector<bool> null_bitmap;
+      std::string json_pointer{[]() {
+        std::string json_pointer;
+        json_pointer.reserve(64);
+        return json_pointer;
+      }()};
+    } cached_data;
   };
 
   void sendNodesInsert(const TableDiff& data);

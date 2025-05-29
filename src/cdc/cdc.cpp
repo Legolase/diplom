@@ -237,16 +237,18 @@ std::optional<TableDiff> TableDiffSource::getDataImpl()
     break;
   }
 
-  return TableDiff{ .type = type,
-                    .collection_name = std::move(table_map_event->m_dbnam),
-                    .table_name = std::move(table_map_event->m_tblnam),
-                    .column_types = std::move(table_map_event->m_coltype),
-                    .column_metatypes = std::move(table_map_event->m_field_metadata),
-                    .column_name_list = table_map_event->getColumnName(),
-                    .column_primary_key_list = table_map_event->getSimplePrimaryKey(),
-                    .column_signedness = table_map_event->getSignedness(),
-                    .row = std::move(rows_event->row),
-                    .width = table_map_event->column_count };
+  return TableDiff{
+      .type = type,
+      .collection_name = std::move(table_map_event->m_dbnam),
+      .table_name = std::move(table_map_event->m_tblnam),
+      .column_types = std::move(table_map_event->m_coltype),
+      .column_metatypes = std::move(table_map_event->m_field_metadata),
+      .column_name_list = table_map_event->getColumnName(),
+      .column_primary_key_list = table_map_event->getSimplePrimaryKey(),
+      .column_signedness = table_map_event->getSignedness(),
+      .row = std::move(rows_event->row),
+      .width = table_map_event->column_count
+  };
 }
 
 TableDiffSource::EventPackage TableDiffSource::getEventPackage()
@@ -258,7 +260,7 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
   while (true) {
     auto data = event_source->getData();
     if (!data) {
-      return { nullptr, nullptr };
+      return {nullptr, nullptr};
     }
 
     auto& data_binlog_uptr = data.value();
@@ -301,7 +303,7 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
       break;
     }
   }
-  return { std::move(table_map_event), std::move(rows_event) };
+  return {std::move(table_map_event), std::move(rows_event)};
 }
 
 OtterBrixDiffSink::OtterBrixDiffSink(
@@ -336,26 +338,27 @@ void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
   collection_full_name_t collection(data.collection_name, data.table_name);
 
   ReadContext context = {
-    .column_metatype_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.column_metatypes.data()),
-        data.column_metatypes.size()
-    ),
-    .column_type_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.column_types.data()), data.column_types.size()
-    ),
-    .row_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.row.data()), data.row.size()
-    ),
-    .signedness_r =
-        utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
-    .data = data
+      .column_metatype_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.column_metatypes.data()),
+          data.column_metatypes.size()
+      ),
+      .column_type_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.column_types.data()),
+          data.column_types.size()
+      ),
+      .row_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.row.data()), data.row.size()
+      ),
+      .signedness_r =
+          utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
+      .data = data
   };
 
   docs.reserve(16);
 
   while (context.row_r.available()) {
-    docs.emplace_back() = components::document::make_document(resource);
-    fillDocument(docs.back(), context);
+    auto& doc = docs.emplace_back() = components::document::make_document(resource);
+    fillDocument(doc, context);
   }
 
   otterbrix_consumer->putData(make_node_insert(resource, collection, std::move(docs)));
@@ -371,23 +374,24 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
   collection_full_name_t collection(data.collection_name, data.table_name);
   auto tape = std::make_unique<impl::base_document>(resource);
   auto new_value = [&](auto value) {
-    return value_t{ tape.get(), value };
+    return value_t{tape.get(), value};
   };
 
   ReadContext context = {
-    .column_metatype_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.column_metatypes.data()),
-        data.column_metatypes.size()
-    ),
-    .column_type_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.column_types.data()), data.column_types.size()
-    ),
-    .row_r = utils::StringBufferReader(
-        reinterpret_cast<const char*>(data.row.data()), data.row.size()
-    ),
-    .signedness_r =
-        utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
-    .data = data
+      .column_metatype_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.column_metatypes.data()),
+          data.column_metatypes.size()
+      ),
+      .column_type_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.column_types.data()),
+          data.column_types.size()
+      ),
+      .row_r = utils::StringBufferReader(
+          reinterpret_cast<const char*>(data.row.data()), data.row.size()
+      ),
+      .signedness_r =
+          utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
+      .data = data
   };
 
   while (context.row_r.available()) {
@@ -400,19 +404,19 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
 
     fillDocument(doc, context);
 
-    for (int i = 0; i < context.data.column_primary_key_list.size(); ++i) {
+    for (int i = 0; i < context.data.column_primary_key_list.size(); ++i, ++current_parameter_id) {
       const auto primary_key_index = context.data.column_primary_key_list[i];
       const auto& field_name = context.data.column_name_list[primary_key_index];
-      const auto& json_pointer = fmt::format("/{}", field_name);
+      const auto& json_pointer = (context.cached_data.json_pointer = "/") += field_name;
       const auto logic_type = doc->type_by_key(json_pointer);
 
       auto add_value_to_expr = [this, &expr, &field_name, &current_parameter_id, &params,
                                 &new_value](const auto& value) {
         expr->append_child(components::expressions::make_compare_expression(
-            resource, compare_type::eq, components::expressions::key_t{ field_name },
-            core::parameter_id_t{ current_parameter_id }
+            resource, compare_type::eq, components::expressions::key_t{field_name},
+            core::parameter_id_t{current_parameter_id}
         ));
-        params->add_parameter(param_t{ current_parameter_id }, new_value(value));
+        params->add_parameter(param_t{current_parameter_id}, new_value(value));
       };
 
       switch (logic_type) {
@@ -473,9 +477,8 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
       default:
         THROW(std::runtime_error, "Expected known type");
       }
-
-      ++current_parameter_id;
     }
+    
     otterbrix_consumer->putData(make_node_delete_one(
         resource, collection, make_node_match(resource, collection, std::move(expr))
     ));
@@ -486,17 +489,15 @@ void OtterBrixDiffSink::fillDocument(
     components::document::document_ptr& doc, ReadContext& context
 )
 {
-  std::string json_pointer = "/";
-  std::vector<bool> null_bitmap;
+  auto& json_pointer = context.cached_data.json_pointer;
+  auto& null_bitmap = context.cached_data.null_bitmap;
   int null_bitmap_byte_size = (context.data.width + 7) / 8;
-
-  json_pointer.reserve(32);
-  null_bitmap.reserve(context.data.width);
 
   toVectorBool(null_bitmap, std::string_view(context.row_r.ptr(), null_bitmap_byte_size));
   context.row_r.skip(null_bitmap_byte_size);
 
   for (int i = 0; i < context.data.width; ++i) {
+    json_pointer = "/";
     json_pointer += context.data.column_name_list[i];
     if (null_bitmap[i]) {
       doc->set(json_pointer, nullptr);
@@ -582,7 +583,6 @@ void OtterBrixDiffSink::fillDocument(
         double value = context.row_r.read<double>();
         doc->set(json_pointer, value);
       }
-      // case TableMapEvent::TYPE_BIT:
       case TableMapEvent::TYPE_BOOL: {
         context.signedness_r.read();
 
@@ -622,7 +622,6 @@ void OtterBrixDiffSink::fillDocument(
       }
       }
     }
-    json_pointer = "/";
   }
 }
 
