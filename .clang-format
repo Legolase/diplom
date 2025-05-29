@@ -24,4 +24,3 @@ AccessModifierOffset: -2
 AllowShortLambdasOnASingleLine: None
 AlignAfterOpenBracket: BlockIndent
 SpaceAfterTemplateKeyword: false
-Cpp11BracedListStyle: false

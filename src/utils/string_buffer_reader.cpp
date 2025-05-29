@@ -82,12 +82,14 @@ void StringBufferReader::skip(size_t length)
 const char* StringBufferReader::source() const noexcept
 {
   return std::visit(
-      Overload{ [](const std::string& str) {
-                 return str.data();
-               },
-                [](const std::string_view& str_view) {
-                  return str_view.data();
-                } },
+      Overload{
+          [](const std::string& str) {
+            return str.data();
+          },
+          [](const std::string_view& str_view) {
+            return str_view.data();
+          }
+      },
       storage_v
   );
 }
@@ -95,12 +97,14 @@ const char* StringBufferReader::source() const noexcept
 size_t StringBufferReader::size() const noexcept
 {
   return std::visit(
-      Overload{ [](const std::string& str) {
-                 return str.size();
-               },
-                [](const std::string_view& str_view) {
-                  return str_view.size();
-                } },
+      Overload{
+          [](const std::string& str) {
+            return str.size();
+          },
+          [](const std::string_view& str_view) {
+            return str_view.size();
+          }
+      },
       storage_v
   );
 }

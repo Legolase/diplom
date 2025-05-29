@@ -202,7 +202,7 @@ struct FormatDescriptionEvent : BinlogEvent {
   bool dont_set_created;
   uint8_t common_header_len;
   std::vector<uint8_t> post_header_len;
-  bool has_checksum{ true };
+  bool has_checksum{true};
 };
 
 struct GtidEvent : BinlogEvent {
@@ -229,7 +229,7 @@ public:
   };
 
   struct Tsid {
-    Uuid m_uuid = { 0 };
+    Uuid m_uuid = {0};
     Tag m_tag;
   };
 
@@ -244,7 +244,7 @@ public:
   uint64_t transaction_length;
   uint32_t original_server_version;
   uint32_t immediate_server_version;
-  uint64_t commit_group_ticket{ kGroupTicketUnset };
+  uint64_t commit_group_ticket{kGroupTicketUnset};
 
   GtidInfo gtid_info_struct;
   Tsid tsid_parent_struct;
@@ -509,10 +509,10 @@ private:
   ) const noexcept;
 
 public:
-  uint64_t m_table_id{ 0 };
-  uint16_t m_flags{ 0 };
-  size_t m_data_size{ 0 };
-  int64_t column_count{ 0 };
+  uint64_t m_table_id{0};
+  uint16_t m_flags{0};
+  size_t m_data_size{0};
+  int64_t column_count{0};
   std::string m_dbnam;
   std::string m_tblnam;
   std::string m_coltype;
@@ -545,9 +545,9 @@ struct TransactionPayloadEvent : BinlogEvent {
 
   std::string m_payload;
   std::string m_buffer_sequence_view;
-  uint64_t m_payload_size{ 0 };
+  uint64_t m_payload_size{0};
   CompressionType m_compression_type;
-  uint64_t m_uncompressed_size{ 0 };
+  uint64_t m_uncompressed_size{0};
 };
 
 struct UnknownEvent : BinlogEvent {

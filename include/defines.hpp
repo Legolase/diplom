@@ -69,7 +69,7 @@ private:
   LogStreamer& print(const std::string_view& str_view);
 
   std::ostream& out;
-  bool holded{ true };
+  bool holded{true};
 };
 
 static_assert(std::is_copy_assignable_v<LogStreamer> == false);

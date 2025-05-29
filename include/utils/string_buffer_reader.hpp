@@ -126,7 +126,7 @@ private:
   /// @brief union kept own string or string_view.
   storage_t storage_v;
   /// @brief current position of first unread character.
-  size_t pos{ 0 };
+  size_t pos{0};
 };
 } // namespace utils
 

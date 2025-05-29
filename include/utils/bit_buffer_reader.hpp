@@ -79,12 +79,14 @@ public:
     }
 
     uint8_t current_char = std::visit(
-        Overload{ [this](const std::string& str) {
-                   return str[pos / 8];
-                 },
-                  [this](const std::string_view& str_view) {
-                    return str_view[pos / 8];
-                  } },
+        Overload{
+            [this](const std::string& str) {
+              return str[pos / 8];
+            },
+            [this](const std::string_view& str_view) {
+              return str_view[pos / 8];
+            }
+        },
         storage_v
     );
     uint8_t real_byte_pos = pos % 8;
@@ -115,12 +117,14 @@ private:
   size_t size() const noexcept
   {
     return std::visit(
-        Overload{ [](const std::string& str) {
-                   return str.size() * 8;
-                 },
-                  [](const std::string_view& str_view) {
-                    return str_view.size() * 8;
-                  } },
+        Overload{
+            [](const std::string& str) {
+              return str.size() * 8;
+            },
+            [](const std::string_view& str_view) {
+              return str_view.size() * 8;
+            }
+        },
         storage_v
     );
   }
@@ -137,7 +141,7 @@ private:
   /// Internal storage: either owned string or non-owning string_view
   storage_t storage_v;
   /// Current reading position in bits
-  size_t pos{ 0 };
+  size_t pos{0};
 };
 
 } // namespace utils
