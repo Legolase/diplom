@@ -7,37 +7,33 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-namespace mysql_binlog::event {
+namespace binlog::event {
 
 enum LogEventType : uint8_t {
-  /**
-    Every time you add a type, you have to
-    - Assign it a number explicitly. Otherwise it will cause trouble
-      if a event type before is deprecated and removed directly from
-      the enum.
-    - Fix Format_description_event::Format_description_event().
+  /*
+    Every time you update this enum (when you add a type), you have to
+    fix Format_description_log_event::Format_description_log_event().
   */
   UNKNOWN_EVENT = 0,
-  /*
-    Deprecated since mysql 8.0.2. It is just a placeholder,
-    should not be used anywhere else.
-  */
   START_EVENT_V3 = 1,
   QUERY_EVENT = 2,
   STOP_EVENT = 3,
   ROTATE_EVENT = 4,
   INTVAR_EVENT = 5,
-
+  LOAD_EVENT = 6,
   SLAVE_EVENT = 7,
-
+  CREATE_FILE_EVENT = 8,
   APPEND_BLOCK_EVENT = 9,
+  EXEC_LOAD_EVENT = 10,
   DELETE_FILE_EVENT = 11,
-
+  NEW_LOAD_EVENT = 12,
   RAND_EVENT = 13,
   USER_VAR_EVENT = 14,
   FORMAT_DESCRIPTION_EVENT = 15,
@@ -47,40 +43,121 @@ enum LogEventType : uint8_t {
 
   TABLE_MAP_EVENT = 19,
 
-  OBSOLETE_WRITE_ROWS_EVENT_V1 = 23,
-  OBSOLETE_UPDATE_ROWS_EVENT_V1 = 24,
-  OBSOLETE_DELETE_ROWS_EVENT_V1 = 25,
+  /*
+    These event numbers were used for 5.1.0 to 5.1.15 and are
+    therefore obsolete.
+   */
+  PRE_GA_WRITE_ROWS_EVENT = 20,
+  PRE_GA_UPDATE_ROWS_EVENT = 21,
+  PRE_GA_DELETE_ROWS_EVENT = 22,
 
+  /*
+    These event numbers are used from 5.1.16 until mysql-5.6.6,
+    and in MariaDB
+   */
+  WRITE_ROWS_EVENT_V1 = 23,
+  UPDATE_ROWS_EVENT_V1 = 24,
+  DELETE_ROWS_EVENT_V1 = 25,
+
+  /*
+    Something out of the ordinary happened on the master
+   */
   INCIDENT_EVENT = 26,
 
+  /*
+    Heartbeat event to be send by master at its idle time
+    to ensure master's online status to slave
+  */
   HEARTBEAT_LOG_EVENT = 27,
 
+  /*
+    In some situations, it is necessary to send over ignorable
+    data to the slave: data that a slave can handle in case there
+    is code for handling it, but which can be ignored if it is not
+    recognized.
+
+    These mysql-5.6 events are not recognized (and ignored) by MariaDB
+  */
   IGNORABLE_LOG_EVENT = 28,
   ROWS_QUERY_LOG_EVENT = 29,
 
+  /* Version 2 of the Row events, generated only by mysql-5.6.6+ */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
 
+  /* MySQL 5.6 GTID events, ignored by MariaDB */
   GTID_LOG_EVENT = 33,
   ANONYMOUS_GTID_LOG_EVENT = 34,
-
   PREVIOUS_GTIDS_LOG_EVENT = 35,
 
+  /* MySQL 5.7 events, ignored by MariaDB */
   TRANSACTION_CONTEXT_EVENT = 36,
-
   VIEW_CHANGE_EVENT = 37,
-
+  /* not ignored */
   XA_PREPARE_LOG_EVENT = 38,
 
+  /**
+    Extension of UPDATE_ROWS_EVENT, allowing partial values according
+    to binlog_row_value_options.
+  */
   PARTIAL_UPDATE_ROWS_EVENT = 39,
-
   TRANSACTION_PAYLOAD_EVENT = 40,
-
   HEARTBEAT_LOG_EVENT_V2 = 41,
 
-  GTID_TAGGED_LOG_EVENT = 42,
-  ENUM_END_EVENT
+  /*
+    Add new events here - right above this comment!
+    Existing events (except ENUM_END_EVENT) should never change their numbers
+  */
+
+  /* New MySQL/Sun events are to be added right above this comment */
+  MYSQL_EVENTS_END,
+
+  MARIA_EVENTS_BEGIN = 160,
+  /* New Maria event numbers start from here */
+  ANNOTATE_ROWS_EVENT = 160,
+  /*
+    Binlog checkpoint event. Used for XA crash recovery on the master, not used
+    in replication.
+    A binlog checkpoint event specifies a binlog file such that XA crash
+    recovery can start from that file - and it is guaranteed to find all XIDs
+    that are prepared in storage engines but not yet committed.
+  */
+  BINLOG_CHECKPOINT_EVENT = 161,
+  /*
+    Gtid event. For global transaction ID, used to start a new event group,
+    instead of the old BEGIN query event, and also to mark stand-alone
+    events.
+  */
+  GTID_EVENT = 162,
+  /*
+    Gtid list event. Logged at the start of every binlog, to record the
+    current replication state. This consists of the last GTID seen for
+    each replication domain.
+  */
+  GTID_LIST_EVENT = 163,
+
+  START_ENCRYPTION_EVENT = 164,
+
+  /*
+    Compressed binlog event.
+
+    Note that the order between WRITE/UPDATE/DELETE events is significant;
+    this is so that we can convert from the compressed to the uncompressed
+    event type with (type-WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT)
+    and similar for _V1.
+  */
+  QUERY_COMPRESSED_EVENT = 165,
+  WRITE_ROWS_COMPRESSED_EVENT_V1 = 166,
+  UPDATE_ROWS_COMPRESSED_EVENT_V1 = 167,
+  DELETE_ROWS_COMPRESSED_EVENT_V1 = 168,
+  WRITE_ROWS_COMPRESSED_EVENT = 169,
+  UPDATE_ROWS_COMPRESSED_EVENT = 170,
+  DELETE_ROWS_COMPRESSED_EVENT = 171,
+
+  /* Add new MariaDB events here - right above this comment!  */
+
+  ENUM_END_EVENT /* end marker */
 };
 
 enum LogEventPostHeaderSize : uint32_t {
@@ -93,6 +170,11 @@ enum LogEventPostHeaderSize : uint32_t {
   // this is FROZEN (the Rotate post-header is frozen)
   ROTATE_HEADER_LEN = 8,
   INTVAR_HEADER_LEN = 0,
+  LOAD_HEADER_LEN = 18,
+  SLAVE_HEADER_LEN = 0,
+  CREATE_FILE_HEADER_LEN = 4,
+  EXEC_LOAD_HEADER_LEN = 4,
+  NEW_LOAD_HEADER_LEN = 18,
   APPEND_BLOCK_HEADER_LEN = 4,
   DELETE_FILE_HEADER_LEN = 4,
   RAND_HEADER_LEN = 0,
@@ -109,6 +191,11 @@ enum LogEventPostHeaderSize : uint32_t {
   HEARTBEAT_HEADER_LEN = 0,
   IGNORABLE_HEADER_LEN = 0,
   ROWS_HEADER_LEN_V2 = 10,
+  ANNOTATE_ROWS_HEADER_LEN = 0,
+  BINLOG_CHECKPOINT_HEADER_LEN = 4,
+  GTID_HEADER_LEN = 19,
+  GTID_LIST_HEADER_LEN = 4,
+  START_ENCRYPTION_HEADER_LEN = 0,
   TRANSACTION_CONTEXT_HEADER_LEN = 18,
   VIEW_CHANGE_HEADER_LEN = 52,
   XA_PREPARE_HEADER_LEN = 0,
@@ -187,7 +274,7 @@ struct FormatDescriptionEvent : BinlogEvent {
   bool dont_set_created;
   uint8_t common_header_len;
   std::vector<uint8_t> post_header_len;
-  bool has_checksum{true};
+  bool has_checksum{ true };
 };
 
 struct GtidEvent : BinlogEvent {
@@ -214,7 +301,7 @@ public:
   };
 
   struct Tsid {
-    Uuid m_uuid = {0};
+    Uuid m_uuid = { 0 };
     Tag m_tag;
   };
 
@@ -229,7 +316,7 @@ public:
   uint64_t transaction_length;
   uint32_t original_server_version;
   uint32_t immediate_server_version;
-  uint64_t commit_group_ticket{kGroupTicketUnset};
+  uint64_t commit_group_ticket{ kGroupTicketUnset };
 
   GtidInfo gtid_info_struct;
   Tsid tsid_parent_struct;
@@ -442,14 +529,75 @@ struct TableMapEvent : BinlogEvent {
   using UPtr = std::unique_ptr<TableMapEvent>;
   using SPtr = std::shared_ptr<TableMapEvent>;
 
+  enum OptinalMetadataType : uint8_t {
+    SIGNEDNESS = 1,
+    DEFAULT_CHARSET,
+    COLUMN_CHARSET,
+    COLUMN_NAME,
+    SET_STR_VALUE,
+    ENUM_STR_VALUE,
+    GEOMETRY_TYPE,
+    SIMPLE_PRIMARY_KEY,
+    PRIMARY_KEY_WITH_PREFIX,
+    ENUM_AND_SET_DEFAULT_CHARSET,
+    ENUM_AND_SET_COLUMN_CHARSET
+  };
+
+  enum ColumnType : uint8_t {
+    TYPE_DECIMAL,
+    TYPE_TINY,  // TINYINT
+    TYPE_SHORT, // SMALLINT
+    TYPE_LONG,  // INT
+    TYPE_FLOAT,
+    TYPE_DOUBLE,
+    TYPE_NULL,
+    TYPE_TIMESTAMP,
+    TYPE_LONGLONG, // BIGINT
+    TYPE_INT24,    // MEDIUMINT
+    TYPE_DATE,
+    TYPE_TIME,
+    TYPE_DATETIME,
+    TYPE_YEAR,
+    TYPE_NEWDATE,
+    TYPE_VARCHAR,
+    TYPE_BIT,
+    TYPE_TIMESTAMP2,
+    TYPE_DATETIME2,
+    TYPE_TIME2,
+    TYPE_TYPED_ARRAY,
+    TYPE_VECTOR = 242,
+    TYPE_INVALID = 243,
+    TYPE_BOOL = 244,
+    TYPE_JSON = 245,
+    TYPE_NEWDECIMAL = 246,
+    TYPE_ENUM = 247,
+    TYPE_SET = 248,
+    TYPE_TINY_BLOB = 249,
+    TYPE_MEDIUM_BLOB = 250,
+    TYPE_LONG_BLOB = 251,
+    TYPE_BLOB = 252,
+    TYPE_VAR_STRING = 253,
+    TYPE_STRING = 254,
+    TYPE_GEOMETRY = 255
+  };
+
   TableMapEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
   void show(std::ostream& out = std::cout) const;
 
-  uint64_t m_table_id{0};
-  uint16_t m_flags{0};
-  size_t m_data_size{0};
-  int64_t column_count{0};
+  std::vector<uint16_t> getSimplePrimaryKey() const;
+  std::vector<std::string> getColumnName() const;
+  std::string getSignedness() const;
+
+private:
+  const std::optional<std::span<char>> getOptionalField(OptinalMetadataType needed
+  ) const noexcept;
+
+public:
+  uint64_t m_table_id{ 0 };
+  uint16_t m_flags{ 0 };
+  size_t m_data_size{ 0 };
+  int64_t column_count{ 0 };
   std::string m_dbnam;
   std::string m_tblnam;
   std::string m_coltype;
@@ -482,9 +630,9 @@ struct TransactionPayloadEvent : BinlogEvent {
 
   std::string m_payload;
   std::string m_buffer_sequence_view;
-  uint64_t m_payload_size{0};
+  uint64_t m_payload_size{ 0 };
   CompressionType m_compression_type;
-  uint64_t m_uncompressed_size{0};
+  uint64_t m_uncompressed_size{ 0 };
 };
 
 struct UnknownEvent : BinlogEvent {
@@ -554,6 +702,6 @@ struct XidEvent : BinlogEvent {
   uint64_t xid;
 };
 
-}; // namespace mysql_binlog::event
+}; // namespace binlog::event
 
 #endif
