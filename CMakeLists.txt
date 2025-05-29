@@ -11,6 +11,7 @@ set(SOURCES
   src/utils/string_buffer_reader.cpp
   src/utils/common.cpp
   src/utils/stream_reader.cpp
+  src/cdc/cdc.cpp
   src/binlog/binlog_events.cpp
   src/binlog/binlog_reader.cpp
 )
@@ -54,4 +55,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE magic_enum::magic_enum)
 
 find_package(msgpack)
 target_link_libraries(${PROJECT_NAME} PRIVATE msgpackc-cxx)
+
+find_package(libmysqlclient)
+target_link_libraries(${PROJECT_NAME} PRIVATE libmysqlclient::libmysqlclient)
 
