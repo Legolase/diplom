@@ -7,6 +7,7 @@ abseil/20230802.1
 spdlog/1.15.1
 magic_enum/0.8.1
 msgpack-cxx/4.1.1
+libmysqlclient/8.0.25
 
 [generators]
 CMakeDeps
