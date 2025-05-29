@@ -25,7 +25,7 @@ struct StreamReader {
   /// @returns T value constructed from row binary data relative to current position
   /// @throws `BadStream` Thrown if `sizeof(T)` more than available to
   /// read
-  template <typename T>
+  template<typename T>
     requires std::is_default_constructible_v<T>
   T read()
   {
@@ -43,7 +43,7 @@ struct StreamReader {
   /// offset
   /// @throws `BadStream` Thrown if `offset + sizeof(T)` more than
   /// available to read
-  template <typename T>
+  template<typename T>
     requires std::is_default_constructible_v<T>
   T peek(size_t offset = 0)
   {
@@ -65,7 +65,7 @@ struct StreamReader {
   /// @param[in] size Size of required sequence
   void peekCpy(char* dest, size_t offset, size_t size);
 
-  private:
+private:
   /// @brief The stream from which to read binary data
   std::istream& stream;
 };

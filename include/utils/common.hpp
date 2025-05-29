@@ -15,7 +15,7 @@ struct BadStream : std::runtime_error {
 
 /// @brief Helper struct to use it in `std::visit`
 /// @tparam ...Types
-template <typename... Types>
+template<typename... Types>
 struct Overload : Types... {
   using Types::operator()...;
 };

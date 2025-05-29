@@ -28,7 +28,7 @@ namespace utils {
 class StringBufferReader {
   using storage_t = std::variant<std::string, std::string_view>;
 
-  public:
+public:
   /**
    * Creates a stream instance with a copy of the source string. Useful when you don't
    * have permission to manage the allocated memory.
@@ -41,17 +41,21 @@ class StringBufferReader {
   /// @brief Simple work with a given С-string without copying
   /// @param[in] source C-string line
   /// @param[in] size Size of C-string line
-  explicit StringBufferReader(const char* source, size_t size) noexcept;
+  StringBufferReader(const char* source, size_t size) noexcept;
   /// @brief Same as `StringBufferReader(const char* source)` but with wrapper
   /// `std::string_view`
   explicit StringBufferReader(const std::string_view& source) noexcept;
+
+  StringBufferReader(const StringBufferReader&) = delete;
+
+  StringBufferReader& operator=(const StringBufferReader&) = delete;
 
   /// @brief Read row data with advance to T value type and return it
   /// @tparam T is default constructible class
   /// @returns T value constructed from row binary data relative to current position
   /// @throws `BadStream` Thrown if `sizeof(T)` more than available to
   /// read
-  template <typename T>
+  template<typename T>
     requires std::is_default_constructible_v<T>
   T read()
   {
@@ -68,7 +72,7 @@ class StringBufferReader {
   /// offset
   /// @throws `BadStream` Thrown if `offset + sizeof(T)` more than
   /// available to read
-  template <typename T>
+  template<typename T>
     requires std::is_default_constructible_v<T>
   T peek(size_t offset = 0)
   {
@@ -79,15 +83,15 @@ class StringBufferReader {
     return value;
   }
 
-  /// @brief Row copy of memory to specified place
-  /// @param[in, out] dest Place to copy sequence of character
-  /// @param[in] size Size of required sequence
+  /// @brief Row copy of memory to specified place.
+  /// @param[in, out] dest Place to copy sequence of character.
+  /// @param[in] size Size of required sequence.
   void readCpy(char* dest, size_t size);
 
-  /// @brief Row copy of memory relative to offset to specified place
-  /// @param[in, out] dest Place to copy sequence of character
-  /// @param[in] offset Unsigned offset to jump to before reading the stream
-  /// @param[in] size Size of required sequence
+  /// @brief Row copy of memory relative to offset to specified place.
+  /// @param[in, out] dest Place to copy sequence of character.
+  /// @param[in] offset Unsigned offset to jump to before reading the stream.
+  /// @param[in] size Size of required sequence.
   void peekCpy(char* dest, size_t offset, size_t size);
 
   /// @brief Tail size
@@ -99,26 +103,30 @@ class StringBufferReader {
   /// @throws `BadStream` Thrown if the length is invalid and exceeds the `available()`.
   void flipEnd(size_t length);
 
-  /// @brief Return current position relative to beginning of the buffer
+  /// @brief Returns current position relative to beginning of the buffer.
   /// @return Current position
   size_t position() const noexcept;
+
+  /// @brief Returns a pointer to the memory next to be read.
+  /// @return Pointer to the memory next to be read.
+  const char* ptr() const noexcept;
 
   /// @brief Skips the next `length` bytes.
   /// @param[in] length The amount to jump forward relative to the current position.
   /// @throws `BadStream` Thrown if `length > available()`
   void skip(size_t length);
 
-  private:
-  /// @brief Buffer begining
-  /// @returns Pointer to buffer begining
+private:
+  /// @brief Buffer begining.
+  /// @returns Pointer to buffer begining.
   const char* source() const noexcept;
-  /// @brief Buffer size
+  /// @brief Buffer size.
   size_t size() const noexcept;
 
-  /// @brief union kept own string or string_view
+  /// @brief union kept own string or string_view.
   storage_t storage_v;
-  /// @brief current position of first unread character
-  size_t pos{0};
+  /// @brief current position of first unread character.
+  size_t pos{ 0 };
 };
 } // namespace utils
 
