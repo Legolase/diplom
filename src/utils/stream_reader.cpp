@@ -3,8 +3,7 @@
 namespace utils {
 StreamReader::StreamReader(std::istream& in) noexcept :
     stream(in)
-{
-}
+{}
 
 void StreamReader::readCpy(char* dest, size_t size)
 {
@@ -23,4 +22,13 @@ void StreamReader::peekCpy(char* dest, size_t offset, size_t size)
   readCpy(dest, size);
   stream.seekg(start_pos);
 }
+
+bool StreamReader::isEnd() noexcept
+{
+  char buffer;
+  bool result = stream.readsome(&buffer, sizeof(buffer)) == sizeof(buffer);
+  stream.unget();
+  return result;
+}
+
 } // namespace utils
