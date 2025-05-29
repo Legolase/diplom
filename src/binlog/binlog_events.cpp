@@ -476,7 +476,8 @@ std::vector<uint16_t> TableMapEvent::getSimplePrimaryKey() const
   return result;
 }
 
-std::vector<std::string> TableMapEvent::getColumnName() const {
+std::vector<std::string> TableMapEvent::getColumnName() const
+{
   auto opt_column_name = getOptionalField(OptinalMetadataType::COLUMN_NAME);
 
   if (!opt_column_name.has_value()) {
@@ -496,7 +497,8 @@ std::vector<std::string> TableMapEvent::getColumnName() const {
   return result;
 }
 
-std::string TableMapEvent::getSignedness() const {
+std::string TableMapEvent::getSignedness() const
+{
   auto opt_signedness = getOptionalField(OptinalMetadataType::SIGNEDNESS);
 
   if (!opt_signedness.has_value()) {

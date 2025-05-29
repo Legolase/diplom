@@ -6,8 +6,8 @@
 #include <utils/bit_buffer_reader.hpp>
 #include <utils/string_buffer_reader.hpp>
 
-#include <components/logical_plan/node.hpp>
 #include <components/document/document.hpp>
+#include <components/logical_plan/node.hpp>
 #include <concepts>
 #include <functional>
 #include <mysql/mysql.h>
