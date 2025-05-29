@@ -17,10 +17,6 @@
 namespace binlog::event {
 
 enum LogEventType : uint8_t {
-  /*
-    Every time you update this enum (when you add a type), you have to
-    fix Format_description_log_event::Format_description_log_event().
-  */
   UNKNOWN_EVENT = 0,
   START_EVENT_V3 = 1,
   QUERY_EVENT = 2,
@@ -43,110 +39,47 @@ enum LogEventType : uint8_t {
 
   TABLE_MAP_EVENT = 19,
 
-  /*
-    These event numbers were used for 5.1.0 to 5.1.15 and are
-    therefore obsolete.
-   */
   PRE_GA_WRITE_ROWS_EVENT = 20,
   PRE_GA_UPDATE_ROWS_EVENT = 21,
   PRE_GA_DELETE_ROWS_EVENT = 22,
 
-  /*
-    These event numbers are used from 5.1.16 until mysql-5.6.6,
-    and in MariaDB
-   */
   WRITE_ROWS_EVENT_V1 = 23,
   UPDATE_ROWS_EVENT_V1 = 24,
   DELETE_ROWS_EVENT_V1 = 25,
 
-  /*
-    Something out of the ordinary happened on the master
-   */
   INCIDENT_EVENT = 26,
 
-  /*
-    Heartbeat event to be send by master at its idle time
-    to ensure master's online status to slave
-  */
   HEARTBEAT_LOG_EVENT = 27,
 
-  /*
-    In some situations, it is necessary to send over ignorable
-    data to the slave: data that a slave can handle in case there
-    is code for handling it, but which can be ignored if it is not
-    recognized.
-
-    These mysql-5.6 events are not recognized (and ignored) by MariaDB
-  */
   IGNORABLE_LOG_EVENT = 28,
   ROWS_QUERY_LOG_EVENT = 29,
 
-  /* Version 2 of the Row events, generated only by mysql-5.6.6+ */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
 
-  /* MySQL 5.6 GTID events, ignored by MariaDB */
   GTID_LOG_EVENT = 33,
   ANONYMOUS_GTID_LOG_EVENT = 34,
   PREVIOUS_GTIDS_LOG_EVENT = 35,
 
-  /* MySQL 5.7 events, ignored by MariaDB */
   TRANSACTION_CONTEXT_EVENT = 36,
   VIEW_CHANGE_EVENT = 37,
-  /* not ignored */
   XA_PREPARE_LOG_EVENT = 38,
 
-  /**
-    Extension of UPDATE_ROWS_EVENT, allowing partial values according
-    to binlog_row_value_options.
-  */
   PARTIAL_UPDATE_ROWS_EVENT = 39,
   TRANSACTION_PAYLOAD_EVENT = 40,
   HEARTBEAT_LOG_EVENT_V2 = 41,
 
-  /*
-    Add new events here - right above this comment!
-    Existing events (except ENUM_END_EVENT) should never change their numbers
-  */
-
-  /* New MySQL/Sun events are to be added right above this comment */
   MYSQL_EVENTS_END,
 
   MARIA_EVENTS_BEGIN = 160,
-  /* New Maria event numbers start from here */
   ANNOTATE_ROWS_EVENT = 160,
-  /*
-    Binlog checkpoint event. Used for XA crash recovery on the master, not used
-    in replication.
-    A binlog checkpoint event specifies a binlog file such that XA crash
-    recovery can start from that file - and it is guaranteed to find all XIDs
-    that are prepared in storage engines but not yet committed.
-  */
   BINLOG_CHECKPOINT_EVENT = 161,
-  /*
-    Gtid event. For global transaction ID, used to start a new event group,
-    instead of the old BEGIN query event, and also to mark stand-alone
-    events.
-  */
   GTID_EVENT = 162,
-  /*
-    Gtid list event. Logged at the start of every binlog, to record the
-    current replication state. This consists of the last GTID seen for
-    each replication domain.
-  */
   GTID_LIST_EVENT = 163,
 
   START_ENCRYPTION_EVENT = 164,
 
-  /*
-    Compressed binlog event.
-
-    Note that the order between WRITE/UPDATE/DELETE events is significant;
-    this is so that we can convert from the compressed to the uncompressed
-    event type with (type-WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT)
-    and similar for _V1.
-  */
   QUERY_COMPRESSED_EVENT = 165,
   WRITE_ROWS_COMPRESSED_EVENT_V1 = 166,
   UPDATE_ROWS_COMPRESSED_EVENT_V1 = 167,
@@ -155,19 +88,14 @@ enum LogEventType : uint8_t {
   UPDATE_ROWS_COMPRESSED_EVENT = 170,
   DELETE_ROWS_COMPRESSED_EVENT = 171,
 
-  /* Add new MariaDB events here - right above this comment!  */
-
-  ENUM_END_EVENT /* end marker */
+  ENUM_END_EVENT
 };
 
 enum LogEventPostHeaderSize : uint32_t {
-  // where 3.23, 4.x and 5.0 agree
   QUERY_HEADER_MINIMAL_LEN = (4 + 4 + 1 + 2),
-  // where 5.0 differs: 2 for length of N-bytes vars.
   QUERY_HEADER_LEN = (QUERY_HEADER_MINIMAL_LEN + 2),
   STOP_HEADER_LEN = 0,
   START_V3_HEADER_LEN = (2 + ST_SERVER_VER_LEN + 4),
-  // this is FROZEN (the Rotate post-header is frozen)
   ROTATE_HEADER_LEN = 8,
   INTVAR_HEADER_LEN = 0,
   LOAD_HEADER_LEN = 18,
@@ -353,11 +281,8 @@ struct IncidentEvent : BinlogEvent {
   using SPtr = std::shared_ptr<IncidentEvent>;
 
   enum class EnumIncident {
-    /** No incident */
     INCIDENT_NONE = 0,
-    /** There are possibly lost events in the replication stream */
     INCIDENT_LOST_EVENTS = 1,
-    /** Shall be last event of the enumeration */
     INCIDENT_COUNT
   };
 
@@ -432,10 +357,9 @@ struct ExecuteLoadQueryEvent : QueryEvent {
     LOAD_DUP_REPLACE
   };
 
-  int32_t file_id; /** file_id of temporary file */
-  uint32_t
-      fn_pos_start;    /** pointer to the part of the query that should be substituted */
-  uint32_t fn_pos_end; /** pointer to the end of this part of query */
+  int32_t file_id;
+  uint32_t fn_pos_start;
+  uint32_t fn_pos_end;
   LoadDupHandling dup_handling;
 };
 
@@ -468,19 +392,10 @@ struct RowsEvent : BinlogEvent {
   using UPtr = std::unique_ptr<RowsEvent>;
   using SPtr = std::shared_ptr<RowsEvent>;
 
-  struct ExtraRowInfo {
-    int m_partition_id;
-    int m_source_partition_id;
-    unsigned char* m_extra_row_ndb_info;
-  };
-
   explicit RowsEvent(LogEventType type);
   RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
   void show(std::ostream& out = std::cout) const;
-
-  /// #TO_CHECK: If the info needed for CDC?
-  // ExtraRowInfo m_extra_row_info;
 
   LogEventType m_type;
   uint64_t m_table_id;
@@ -645,12 +560,12 @@ struct UserVarEvent : BinlogEvent {
   using SPtr = std::shared_ptr<UserVarEvent>;
 
   enum class ValueType {
-    INVALID_RESULT = -1, /* not valid for UDFs */
-    STRING_RESULT = 0,   /* char * */
-    REAL_RESULT,         /* double */
-    INT_RESULT,          /* long long */
-    ROW_RESULT,          /* not valid for UDFs */
-    DECIMAL_RESULT       /* char *, to be converted to/from a decimal */
+    INVALID_RESULT = -1,
+    STRING_RESULT = 0,
+    REAL_RESULT,
+    INT_RESULT,
+    ROW_RESULT,
+    DECIMAL_RESULT
   };
 
   std::string name;
