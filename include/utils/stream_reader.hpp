@@ -22,7 +22,7 @@ struct StreamReader {
    * @brief Constructor from the required stream for convenient reading of binary data
    * relative to the current position
    * @param[in] in The stream from which to read binary data
-   * /
+   */
   explicit StreamReader(std::istream& in) noexcept;
 
   /**
