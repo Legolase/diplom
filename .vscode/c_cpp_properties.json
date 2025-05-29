@@ -3,12 +3,15 @@
         {
             "name": "Linux",
             "includePath": [
-                // "${workspaceFolder}/*",
                 "${workspaceFolder}/include/*",
                 "${workspaceFolder}/include/**",
-                "/home/nikita/vcpkg/buildtrees/fmt/src/11.0.2-c30c0a133f.clean/include",
-                "/home/nikita/vcpkg/buildtrees/gtest/src/v1.15.2-41f5afb119.clean/googletest/include",
-                "/home/nikita/vcpkg/buildtrees/gtest/src/v1.15.2-41f5afb119.clean/googlemock/include"
+                "/home/nikita/.conan2/p/b/otter5407e51757b08/p/include",
+                "/home/nikita/.conan2/p/b/gtestc035e36263848/p/include",
+                "/home/nikita/.conan2/p/b/fmt91c8d1a4aa0d7/p/include",
+                "/home/nikita/.conan2/p/magic51afdf0e65e14/p/include",
+                "/home/nikita/.conan2/p/msgpae036afd951f27/p/include",
+                "/home/nikita/.conan2/p/b/libmyd49c9ec67264d/p/include",
+                "/home/nikita/.conan2/p/b/abseid7653cf0cac04/p/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

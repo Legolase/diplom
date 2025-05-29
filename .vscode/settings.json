@@ -81,7 +81,9 @@
     "typeindex": "cpp",
     "complex": "cpp",
     "shared_mutex": "cpp",
-    "stdfloat": "cpp"
+    "stdfloat": "cpp",
+    "strstream": "cpp",
+    "text_encoding": "cpp"
   },
   "taskExplorer.exclude": [
     "**/.vscode-test/**",
