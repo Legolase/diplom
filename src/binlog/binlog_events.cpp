@@ -9,29 +9,18 @@
 #define PEEK_ARR(dest, ...) (reader.peekCpy(reinterpret_cast<char*>(dest), __VA_ARGS__))
 
 namespace {
-uint packed_integer_field_size(uint8_t field)
-{
-  if (field <= 251) return 1;
-  if (field == 252) return 3;
-  if (field == 253) return 4;
-  return 9;
-}
 
 int64_t get_packed_integer(utils::StringBufferReader& reader)
 {
-  uint8_t prefix;
-  PEEK(prefix);
-  prefix = packed_integer_field_size(prefix);
-
   uint64_t result = 0;
+  READ_ARR(&result, 1);
 
-  if (prefix < 251) {
-    READ_ARR(&result, 1);
-  } else if (prefix == 255) {
+  if (result < 251) {
+  } else if (result == 251) {
     return (unsigned long)~0;
-  } else if (prefix == 252) {
+  } else if (result == 252) {
     READ_ARR(&result, 2);
-  } else if (prefix == 253) {
+  } else if (result == 253) {
     READ_ARR(&result, 3);
   } else {
     READ_ARR(&result, 8);
@@ -61,7 +50,7 @@ uint64_t get_server_version_value(const char* p)
 }
 } // namespace
 
-namespace mysql_binlog::event {
+namespace binlog::event {
 
 EventHeader::EventHeader(LogEventType _type) noexcept :
     when(0),
@@ -69,8 +58,7 @@ EventHeader::EventHeader(LogEventType _type) noexcept :
     log_pos(0),
     flags(0),
     type_code(_type)
-{
-}
+{}
 
 EventHeader::EventHeader(utils::StringBufferReader& reader)
 {
@@ -84,8 +72,7 @@ EventHeader::EventHeader(utils::StringBufferReader& reader)
 
 BinlogEvent::BinlogEvent(LogEventType _type) :
     header(_type)
-{
-}
+{}
 
 BinlogEvent::BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
     header(reader)
@@ -123,15 +110,16 @@ FormatDescriptionEvent::FormatDescriptionEvent(
   common_header_len = LOG_EVENT_HEADER_LEN;
   post_header_len.resize(LOG_EVENT_TYPES);
 
+#ifndef NDEBUG
   // Using to set check than all events size were initialized
   std::memset(post_header_len.data(), 255, post_header_len.size());
+#endif
 
   post_header_len[START_EVENT_V3 - 1] = START_V3_HEADER_LEN;
   post_header_len[QUERY_EVENT - 1] = QUERY_HEADER_LEN;
   post_header_len[STOP_EVENT - 1] = STOP_HEADER_LEN;
   post_header_len[ROTATE_EVENT - 1] = ROTATE_HEADER_LEN;
   post_header_len[INTVAR_EVENT - 1] = INTVAR_HEADER_LEN;
-  //>>>>>>
   post_header_len[LOAD_EVENT - 1] = LOAD_HEADER_LEN;
   post_header_len[SLAVE_EVENT - 1] = SLAVE_HEADER_LEN;
   post_header_len[CREATE_FILE_EVENT - 1] = CREATE_FILE_HEADER_LEN;
@@ -169,7 +157,29 @@ FormatDescriptionEvent::FormatDescriptionEvent(
   post_header_len[WRITE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
   post_header_len[UPDATE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
   post_header_len[DELETE_ROWS_EVENT - 1] = ROWS_HEADER_LEN_V2;
-  
+  std::memset(
+      post_header_len.data() + MYSQL_EVENTS_END - 1, 0,
+      MARIA_EVENTS_BEGIN - MYSQL_EVENTS_END
+  );
+  post_header_len[ANNOTATE_ROWS_EVENT - 1] = ANNOTATE_ROWS_HEADER_LEN;
+  post_header_len[BINLOG_CHECKPOINT_EVENT - 1] = BINLOG_CHECKPOINT_HEADER_LEN;
+  post_header_len[GTID_EVENT - 1] = GTID_HEADER_LEN;
+  post_header_len[GTID_LIST_EVENT - 1] = GTID_LIST_HEADER_LEN;
+  post_header_len[START_ENCRYPTION_EVENT - 1] = START_ENCRYPTION_HEADER_LEN;
+  post_header_len[QUERY_COMPRESSED_EVENT - 1] = QUERY_HEADER_LEN;
+  post_header_len[WRITE_ROWS_COMPRESSED_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[UPDATE_ROWS_COMPRESSED_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[DELETE_ROWS_COMPRESSED_EVENT - 1] = ROWS_HEADER_LEN_V2;
+  post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+  post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+  post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1 - 1] = ROWS_HEADER_LEN_V1;
+#ifndef NDEBUG
+  for (const auto& elem : post_header_len) {
+    if (elem == 255) {
+      THROW(std::runtime_error, "Not all post-header size elements were initialized");
+    }
+  }
+#endif
 }
 
 FormatDescriptionEvent::FormatDescriptionEvent(
@@ -227,8 +237,7 @@ RotateEvent::RotateEvent(std::string _new_log_ident, uint32_t _flags, uint64_t _
     new_log_ident(std::move(_new_log_ident)),
     flags(_flags),
     pos(_pos)
-{
-}
+{}
 
 RotateEvent::RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
     BinlogEvent(reader, fde)
@@ -271,8 +280,7 @@ RowsEvent::RowsEvent(LogEventType type) :
     columns_before_image(0),
     columns_after_image(0),
     row(0)
-{
-}
+{}
 
 RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde) :
     BinlogEvent(reader, fde)
@@ -449,4 +457,76 @@ void TableMapEvent::show(std::ostream& out) const
   LOG_INFO(out) << "   m_optional_metadata: " << std::string_view(m_optional_metadata);
 }
 
-} // namespace mysql_binlog::event
+std::vector<uint16_t> TableMapEvent::getSimplePrimaryKey() const
+{
+  const auto opt_simple_pk = getOptionalField(SIMPLE_PRIMARY_KEY);
+
+  if (!opt_simple_pk.has_value()) {
+    return {};
+  }
+
+  const auto& simple_pk = opt_simple_pk.value();
+  utils::StringBufferReader reader(simple_pk.data(), simple_pk.size());
+  std::vector<uint16_t> result;
+
+  while (reader.available()) {
+    result.push_back(get_packed_integer(reader));
+  }
+
+  return result;
+}
+
+std::vector<std::string> TableMapEvent::getColumnName() const {
+  auto opt_column_name = getOptionalField(OptinalMetadataType::COLUMN_NAME);
+
+  if (!opt_column_name.has_value()) {
+    return {};
+  }
+
+  const auto& column_name = opt_column_name.value();
+  utils::StringBufferReader reader(column_name.data(), column_name.size());
+  std::vector<std::string> result;
+
+  while (reader.available()) {
+    size_t column_name_length = get_packed_integer(reader);
+    result.emplace_back(reader.ptr(), column_name_length);
+    reader.skip(column_name_length);
+  }
+
+  return result;
+}
+
+std::string TableMapEvent::getSignedness() const {
+  auto opt_signedness = getOptionalField(OptinalMetadataType::SIGNEDNESS);
+
+  if (!opt_signedness.has_value()) {
+    return {};
+  }
+
+  const auto& signedness = opt_signedness.value();
+  return std::string(signedness.data(), signedness.size());
+}
+
+const std::optional<std::span<char>>
+TableMapEvent::getOptionalField(OptinalMetadataType needed_type) const noexcept
+{
+  utils::StringBufferReader reader(
+      m_optional_metadata.data(), m_optional_metadata.size()
+  );
+
+  while (reader.available()) {
+    OptinalMetadataType metadata_type;
+
+    READ(metadata_type);
+    uint64_t metadata_length = get_packed_integer(reader);
+
+    if (metadata_type != needed_type) {
+      reader.skip(metadata_length);
+    } else {
+      return std::span<char>(const_cast<char*>(reader.ptr()), metadata_length);
+    }
+  }
+  return std::nullopt;
+}
+
+} // namespace binlog::event

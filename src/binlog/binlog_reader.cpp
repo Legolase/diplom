@@ -15,10 +15,10 @@
 
 namespace {
 template <typename ProcessFunc>
-mysql_binlog::event::BinlogEvent::UPtr
+binlog::event::BinlogEvent::UPtr
 processEvents(utils::StreamReader& reader, ProcessFunc&& func)
 {
-  using namespace mysql_binlog;
+  using namespace binlog;
 
   event::FormatDescriptionEvent::SPtr fde =
       std::make_shared<event::FormatDescriptionEvent>(BINLOG_VERSION, SERVER_VERSION);
@@ -37,30 +37,28 @@ processEvents(utils::StreamReader& reader, ProcessFunc&& func)
 
     utils::StringBufferReader event_reader(buffer.data(), event_size);
 
-    mysql_binlog::event::BinlogEvent::SPtr ev;
+    binlog::event::BinlogEvent::SPtr ev;
 
     switch (event_type) {
-    case mysql_binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT:
-      ev = std::make_shared<mysql_binlog::event::FormatDescriptionEvent>(
+    case binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT:
+      ev = std::make_shared<binlog::event::FormatDescriptionEvent>(
           event_reader, fde.get()
       );
       break;
-    case mysql_binlog::event::LogEventType::ROTATE_EVENT:
-      ev = std::make_shared<mysql_binlog::event::RotateEvent>(event_reader, fde.get());
+    case binlog::event::LogEventType::ROTATE_EVENT:
+      ev = std::make_shared<binlog::event::RotateEvent>(event_reader, fde.get());
       break;
-    case mysql_binlog::event::LogEventType::TABLE_MAP_EVENT:
-      ev = std::make_shared<mysql_binlog::event::TableMapEvent>(event_reader, fde.get());
+    case binlog::event::LogEventType::TABLE_MAP_EVENT:
+      ev = std::make_shared<binlog::event::TableMapEvent>(event_reader, fde.get());
       break;
-    case mysql_binlog::event::LogEventType::UPDATE_ROWS_EVENT_V1:
-      ev =
-          std::make_shared<mysql_binlog::event::UpdateRowsEvent>(event_reader, fde.get());
+    case binlog::event::LogEventType::UPDATE_ROWS_EVENT_V1:
+      ev = std::make_shared<binlog::event::UpdateRowsEvent>(event_reader, fde.get());
       break;
-    case mysql_binlog::event::LogEventType::DELETE_ROWS_EVENT_V1:
-      ev =
-          std::make_shared<mysql_binlog::event::DeleteRowsEvent>(event_reader, fde.get());
+    case binlog::event::LogEventType::DELETE_ROWS_EVENT_V1:
+      ev = std::make_shared<binlog::event::DeleteRowsEvent>(event_reader, fde.get());
       break;
-    case mysql_binlog::event::LogEventType::WRITE_ROWS_EVENT_V1:
-      ev = std::make_shared<mysql_binlog::event::WriteRowsEvent>(event_reader, fde.get());
+    case binlog::event::LogEventType::WRITE_ROWS_EVENT_V1:
+      ev = std::make_shared<binlog::event::WriteRowsEvent>(event_reader, fde.get());
       break;
     default:
       LOG_WARNING() << "Unknown event";
@@ -71,22 +69,18 @@ processEvents(utils::StreamReader& reader, ProcessFunc&& func)
       continue;
     }
     func(ev);
-    if (ev->header.type_code ==
-        mysql_binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT)
-    {
-      fde = std::static_pointer_cast<mysql_binlog::event::FormatDescriptionEvent>(ev);
+    if (ev->header.type_code == binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT) {
+      fde = std::static_pointer_cast<binlog::event::FormatDescriptionEvent>(ev);
     }
   }
 }
 } // namespace
 
-namespace mysql_binlog::reader {
+namespace binlog::reader {
 
-int read(
-    const char* file_path, std::vector<mysql_binlog::event::BinlogEvent::UPtr>& storage
-)
+int read(const char* file_path, std::vector<binlog::event::BinlogEvent::UPtr>& storage)
 {
-  using namespace mysql_binlog::event;
+  using namespace binlog::event;
   std::ifstream binlog_file(file_path, std::ios::in | std::ios::binary);
 
   uint32_t magic_num;
@@ -158,4 +152,4 @@ int read(
   return 0;
 }
 
-} // namespace mysql_binlog::reader
+} // namespace binlog::reader
