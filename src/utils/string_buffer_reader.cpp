@@ -4,18 +4,15 @@ namespace utils {
 
 StringBufferReader::StringBufferReader(std::string line) :
     storage_v(std::move(line))
-{
-}
+{}
 
 StringBufferReader::StringBufferReader(const char* source, size_t size) noexcept :
     storage_v(std::string_view(source, size))
-{
-}
+{}
 
 StringBufferReader::StringBufferReader(const std::string_view& source) noexcept :
     storage_v(source)
-{
-}
+{}
 
 void StringBufferReader::readCpy(char* dest, size_t size)
 {
@@ -68,6 +65,11 @@ size_t StringBufferReader::position() const noexcept
   return pos;
 }
 
+const char* StringBufferReader::ptr() const noexcept
+{
+  return source() + position();
+}
+
 void StringBufferReader::skip(size_t length)
 {
   if (length > available()) {
@@ -80,14 +82,12 @@ void StringBufferReader::skip(size_t length)
 const char* StringBufferReader::source() const noexcept
 {
   return std::visit(
-      Overload{
-          [](const std::string& str) {
-            return str.data();
-          },
-          [](const std::string_view& str_view) {
-            return str_view.data();
-          }
-      },
+      Overload{ [](const std::string& str) {
+                 return str.data();
+               },
+                [](const std::string_view& str_view) {
+                  return str_view.data();
+                } },
       storage_v
   );
 }
@@ -95,14 +95,12 @@ const char* StringBufferReader::source() const noexcept
 size_t StringBufferReader::size() const noexcept
 {
   return std::visit(
-      Overload{
-          [](const std::string& str) {
-            return str.size();
-          },
-          [](const std::string_view& str_view) {
-            return str_view.size();
-          }
-      },
+      Overload{ [](const std::string& str) {
+                 return str.size();
+               },
+                [](const std::string_view& str_view) {
+                  return str_view.size();
+                } },
       storage_v
   );
 }
