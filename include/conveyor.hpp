@@ -13,7 +13,7 @@ struct Source {
   using DataHandler = std::function<void(const Data&)>;
 
   Source() = default;
-  Source(const DataHandler& data_handler) :
+  explicit Source(const DataHandler& data_handler) :
       data_handler(data_handler)
   {}
 
@@ -42,7 +42,7 @@ struct Sink {
   using DataHandler = std::function<void(const Data&)>;
 
   Sink() = default;
-  Sink(const DataHandler& data_handler) :
+  explicit Sink(const DataHandler& data_handler) :
       data_handler(data_handler)
   {}
 
@@ -63,11 +63,30 @@ private:
   DataHandler data_handler;
 };
 
-template<typename FromData, typename ToData>
-struct Universal : Source<FromData>, Sink<ToData> {
+template<typename Data>
+struct Universal {
 
-  virtual ~Universal() = default;
-  virtual void process() = 0;
+  Universal(
+      std::unique_ptr<Source<Data>>&& source, std::unique_ptr<Sink<Data>>&& sink
+  ) noexcept :
+      source(std::move(source)),
+      sink(std::move(sink))
+  {}
+
+  void process()
+  {
+    while (true) {
+      const auto& opt_data = source->getData();
+      if (!opt_data.has_value()) {
+        break;
+      }
+      sink->putData(opt_data.value());
+    }
+  }
+
+private:
+  std::unique_ptr<Source<Data>> source;
+  std::unique_ptr<Sink<Data>> sink;
 };
 
 } // namespace conveyor

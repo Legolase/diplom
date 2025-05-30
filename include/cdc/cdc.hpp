@@ -7,16 +7,22 @@
 #include <utils/string_buffer_reader.hpp>
 
 #include <components/document/document.hpp>
-#include <components/logical_plan/node.hpp>
+#include <components/logical_plan/node_delete.hpp>
+#include <components/logical_plan/node_insert.hpp>
+#include <components/logical_plan/node_update.hpp>
+#include <components/logical_plan/param_storage.hpp>
 #include <concepts>
 #include <functional>
 #include <mysql/mysql.h>
 #include <span>
 #include <type_traits>
+#include <variant>
 
 namespace cdc {
 
 struct TableDiff;
+
+struct ExtendedNode;
 
 using Buffer = std::string_view;
 using Binlog = binlog::event::BinlogEvent::UPtr;
@@ -25,7 +31,15 @@ using BufferSourceI = conveyor::Source<Buffer>;
 using EventSourceI = conveyor::Source<Binlog>;
 using TableDiffSourceI = conveyor::Source<TableDiff>;
 using OtterBrixDiffSinkI = conveyor::Sink<TableDiff>;
-using OtterBrixConsumerI = conveyor::Sink<components::logical_plan::node_ptr>;
+using OtterBrixConsumerI = conveyor::Sink<ExtendedNode>;
+using MainProcess = conveyor::Universal<TableDiff>;
+
+using node_insert_ptr = components::logical_plan::node_insert_ptr;
+using node_delete_ptr = components::logical_plan::node_delete_ptr;
+using node_update_ptr = components::logical_plan::node_update_ptr;
+
+using parameter_node_ptr = components::logical_plan::parameter_node_ptr;
+using compare_expression_ptr = components::expressions::compare_expression_ptr;
 
 struct TableDiff {
   enum Type {
@@ -43,6 +57,11 @@ struct TableDiff {
   std::string column_signedness;
   std::vector<uint8_t> row;
   int64_t width{0};
+};
+
+struct ExtendedNode {
+  std::variant<node_insert_ptr, node_delete_ptr, node_update_ptr> node_ptr;
+  components::logical_plan::parameter_node_ptr parameter;
 };
 
 struct DBBufferSource final : BufferSourceI {
@@ -103,6 +122,8 @@ private:
   using node_ptr = components::logical_plan::node_ptr;
 
   struct ReadContext {
+    explicit ReadContext(const TableDiff& data);
+
     utils::StringBufferReader column_metatype_r;
     utils::StringBufferReader column_type_r;
     utils::StringBufferReader row_r;
@@ -121,12 +142,23 @@ private:
 
   void sendNodesInsert(const TableDiff& data);
   void sendNodesDelete(const TableDiff& data);
-  // void sendNodesUpdate(const TableDiff& data);
+  void sendNodesUpdate(const TableDiff& data);
 
   static void fillDocument(components::document::document_ptr& doc, ReadContext& context);
 
+  std::pair<compare_expression_ptr, parameter_node_ptr> getSelectionParameters(
+      const components::document::document_ptr& doc, ReadContext& context
+  );
+
   OtterBrixConsumerI::UPtr otterbrix_consumer;
   std::pmr::memory_resource* resource;
+};
+
+struct OtterBrixConsumerSink final : OtterBrixConsumerI {
+  explicit OtterBrixConsumerSink(DataHandler data_handler);
+
+protected:
+  virtual void putDataImpl(const ExtendedNode& extended_node) override;
 };
 
 } // namespace cdc

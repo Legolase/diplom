@@ -2,10 +2,6 @@
 #include <cdc/cdc.hpp>
 
 #include <components/document/document.hpp>
-#include <components/logical_plan/node_delete.hpp>
-#include <components/logical_plan/node_insert.hpp>
-#include <components/logical_plan/node_update.hpp>
-#include <components/logical_plan/param_storage.hpp>
 #include <concepts>
 #include <utility>
 
@@ -73,6 +69,8 @@ DBBufferSource::DBBufferSource(
   mysql_init(&conn);
 
   if (!mysql_real_connect(&conn, host, user, passwd, db, port, nullptr, 0)) {
+    LOG_ERROR() << "     Error: " << mysql_error(&conn);
+    LOG_ERROR() << "Error code: " << mysql_errno(&conn);
     THROW(std::runtime_error, fmt::format("Can't connect to `{}`", db));
   }
 
@@ -330,6 +328,19 @@ void OtterBrixDiffSink::putDataImpl(const TableDiff& data)
   }
 }
 
+OtterBrixDiffSink::ReadContext::ReadContext(const TableDiff& data) :
+    column_metatype_r(
+        reinterpret_cast<const char*>(data.column_metatypes.data()),
+        data.column_metatypes.size()
+    ),
+    column_type_r(
+        reinterpret_cast<const char*>(data.column_types.data()), data.column_types.size()
+    ),
+    row_r(reinterpret_cast<const char*>(data.row.data()), data.row.size()),
+    signedness_r(data.column_signedness),
+    data(data)
+{}
+
 void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
 {
   using namespace components::logical_plan;
@@ -337,22 +348,7 @@ void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
   std::pmr::vector<components::document::document_ptr> docs;
   collection_full_name_t collection(data.collection_name, data.table_name);
 
-  ReadContext context = {
-      .column_metatype_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.column_metatypes.data()),
-          data.column_metatypes.size()
-      ),
-      .column_type_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.column_types.data()),
-          data.column_types.size()
-      ),
-      .row_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.row.data()), data.row.size()
-      ),
-      .signedness_r =
-          utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
-      .data = data
-  };
+  ReadContext context(data);
 
   docs.reserve(16);
 
@@ -361,7 +357,10 @@ void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
     fillDocument(doc, context);
   }
 
-  otterbrix_consumer->putData(make_node_insert(resource, collection, std::move(docs)));
+  otterbrix_consumer->putData(ExtendedNode{
+      .node_ptr = make_node_insert(resource, collection, std::move(docs)),
+      .parameter = nullptr
+  });
 }
 
 void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
@@ -372,116 +371,53 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
   using param_t = core::parameter_id_t;
 
   collection_full_name_t collection(data.collection_name, data.table_name);
-  auto tape = std::make_unique<impl::base_document>(resource);
-  auto new_value = [&](auto value) {
-    return value_t{tape.get(), value};
-  };
 
-  ReadContext context = {
-      .column_metatype_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.column_metatypes.data()),
-          data.column_metatypes.size()
-      ),
-      .column_type_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.column_types.data()),
-          data.column_types.size()
-      ),
-      .row_r = utils::StringBufferReader(
-          reinterpret_cast<const char*>(data.row.data()), data.row.size()
-      ),
-      .signedness_r =
-          utils::BitBufferReader<utils::BitOrder::BIG_END>(data.column_signedness),
-      .data = data
-  };
+  ReadContext context(data);
 
   while (context.row_r.available()) {
-    auto expr = components::expressions::make_compare_union_expression(
-        resource, compare_type::union_and
-    );
-    auto params = components::logical_plan::make_parameter_node(resource);
     auto doc = components::document::make_document(resource);
-    uint16_t current_parameter_id = 1;
 
     fillDocument(doc, context);
 
-    for (int i = 0; i < context.data.column_primary_key_list.size(); ++i, ++current_parameter_id) {
-      const auto primary_key_index = context.data.column_primary_key_list[i];
-      const auto& field_name = context.data.column_name_list[primary_key_index];
-      const auto& json_pointer = (context.cached_data.json_pointer = "/") += field_name;
-      const auto logic_type = doc->type_by_key(json_pointer);
+    auto selection_params = getSelectionParameters(doc, context);
 
-      auto add_value_to_expr = [this, &expr, &field_name, &current_parameter_id, &params,
-                                &new_value](const auto& value) {
-        expr->append_child(components::expressions::make_compare_expression(
-            resource, compare_type::eq, components::expressions::key_t{field_name},
-            core::parameter_id_t{current_parameter_id}
-        ));
-        params->add_parameter(param_t{current_parameter_id}, new_value(value));
-      };
+    auto& expr = selection_params.first;
+    auto& params = selection_params.second;
 
-      switch (logic_type) {
-      case components::types::logical_type::NA: {
-        THROW(
-            std::runtime_error,
-            "Assertion error. At least one column of primary key has null value"
-        );
-      }
-      case components::types::logical_type::TINYINT: {
-        add_value_to_expr(doc->get_tinyint(json_pointer));
-        break;
-      }
-      case components::types::logical_type::SMALLINT: {
-        add_value_to_expr(doc->get_smallint(json_pointer));
-        break;
-      }
-      case components::types::logical_type::INTEGER: {
-        add_value_to_expr(doc->get_int(json_pointer));
-        break;
-      }
-      case components::types::logical_type::BIGINT: {
-        add_value_to_expr(doc->get_long(json_pointer));
-        break;
-      }
-      case components::types::logical_type::UTINYINT: {
-        add_value_to_expr(doc->get_utinyint(json_pointer));
-        break;
-      }
-      case components::types::logical_type::USMALLINT: {
-        add_value_to_expr(doc->get_usmallint(json_pointer));
-        break;
-      }
-      case components::types::logical_type::UINTEGER: {
-        add_value_to_expr(doc->get_uint(json_pointer));
-        break;
-      }
-      case components::types::logical_type::UBIGINT: {
-        add_value_to_expr(doc->get_ulong(json_pointer));
-        break;
-      }
-      case components::types::logical_type::FLOAT: {
-        add_value_to_expr(doc->get_float(json_pointer));
-        break;
-      }
-      case components::types::logical_type::DOUBLE: {
-        add_value_to_expr(doc->get_double(json_pointer));
-        break;
-      }
-      case components::types::logical_type::BOOLEAN: {
-        add_value_to_expr(doc->get_bool(json_pointer));
-        break;
-      }
-      case components::types::logical_type::STRING_LITERAL: {
-        add_value_to_expr(doc->get_string(json_pointer));
-        break;
-      }
-      default:
-        THROW(std::runtime_error, "Expected known type");
-      }
-    }
-    
-    otterbrix_consumer->putData(make_node_delete_one(
-        resource, collection, make_node_match(resource, collection, std::move(expr))
-    ));
+    otterbrix_consumer->putData(ExtendedNode{
+        .node_ptr = make_node_delete_one(
+            resource, collection, make_node_match(resource, collection, std::move(expr))
+        ),
+        .parameter = std::move(params)
+    });
+  }
+}
+
+void OtterBrixDiffSink::sendNodesUpdate(const TableDiff& data)
+{
+  using namespace components::logical_plan;
+  collection_full_name_t collection(data.collection_name, data.table_name);
+
+  ReadContext context(data);
+
+  while (context.row_r.available()) {
+    auto old_doc = components::document::make_document(resource);
+    auto new_doc = components::document::make_document(resource);
+
+    fillDocument(old_doc, context);
+    fillDocument(new_doc, context);
+
+    auto selection_params = getSelectionParameters(old_doc, context);
+    auto& expr = selection_params.first;
+    auto& params = selection_params.second;
+
+    otterbrix_consumer->putData(ExtendedNode{
+        .node_ptr = make_node_update_one(
+            resource, collection, make_node_match(resource, collection, std::move(expr)),
+            std::move(new_doc)
+        ),
+        .parameter = std::move(params)
+    });
   }
 }
 
@@ -625,4 +561,103 @@ void OtterBrixDiffSink::fillDocument(
   }
 }
 
+std::pair<compare_expression_ptr, parameter_node_ptr>
+OtterBrixDiffSink::getSelectionParameters(
+    const components::document::document_ptr& doc, ReadContext& context
+)
+{
+  using namespace components::expressions;
+  using param_t = core::parameter_id_t;
+
+  auto expr = components::expressions::make_compare_union_expression(
+      resource, compare_type::union_and
+  );
+  auto params = components::logical_plan::make_parameter_node(resource);
+  uint16_t current_parameter_id = 1;
+
+  for (int i = 0; i < context.data.column_primary_key_list.size();
+       ++i, ++current_parameter_id)
+  {
+    const auto primary_key_index = context.data.column_primary_key_list[i];
+    const auto& field_name = context.data.column_name_list[primary_key_index];
+    const auto& json_pointer = (context.cached_data.json_pointer = "/") += field_name;
+    const auto logic_type = doc->type_by_key(json_pointer);
+
+    auto add_parameter = [this, &expr, &field_name, &current_parameter_id,
+                          &params](const auto& value) {
+      expr->append_child(components::expressions::make_compare_expression(
+          resource, compare_type::eq, components::expressions::key_t{field_name},
+          core::parameter_id_t{current_parameter_id}
+      ));
+      params->add_parameter(param_t{current_parameter_id}, value);
+    };
+
+    switch (logic_type) {
+    case components::types::logical_type::NA: {
+      THROW(
+          std::runtime_error,
+          "Assertion error. At least one column of primary key has null value"
+      );
+    }
+    case components::types::logical_type::TINYINT: {
+      add_parameter(doc->get_tinyint(json_pointer));
+      break;
+    }
+    case components::types::logical_type::SMALLINT: {
+      add_parameter(doc->get_smallint(json_pointer));
+      break;
+    }
+    case components::types::logical_type::INTEGER: {
+      add_parameter(doc->get_int(json_pointer));
+      break;
+    }
+    case components::types::logical_type::BIGINT: {
+      add_parameter(doc->get_long(json_pointer));
+      break;
+    }
+    case components::types::logical_type::UTINYINT: {
+      add_parameter(doc->get_utinyint(json_pointer));
+      break;
+    }
+    case components::types::logical_type::USMALLINT: {
+      add_parameter(doc->get_usmallint(json_pointer));
+      break;
+    }
+    case components::types::logical_type::UINTEGER: {
+      add_parameter(doc->get_uint(json_pointer));
+      break;
+    }
+    case components::types::logical_type::UBIGINT: {
+      add_parameter(doc->get_ulong(json_pointer));
+      break;
+    }
+    case components::types::logical_type::FLOAT: {
+      add_parameter(doc->get_float(json_pointer));
+      break;
+    }
+    case components::types::logical_type::DOUBLE: {
+      add_parameter(doc->get_double(json_pointer));
+      break;
+    }
+    case components::types::logical_type::BOOLEAN: {
+      add_parameter(doc->get_bool(json_pointer));
+      break;
+    }
+    case components::types::logical_type::STRING_LITERAL: {
+      add_parameter(doc->get_string(json_pointer));
+      break;
+    }
+    default:
+      THROW(std::runtime_error, "Expected known type");
+    }
+  }
+
+  return {std::move(expr), std::move(params)};
+}
+
+OtterBrixConsumerSink::OtterBrixConsumerSink(DataHandler data_handler) :
+    OtterBrixConsumerI(data_handler)
+{}
+
+void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node) {}
 } // namespace cdc
