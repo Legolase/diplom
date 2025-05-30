@@ -26,7 +26,7 @@ void StreamReader::peekCpy(char* dest, size_t offset, size_t size)
 bool StreamReader::isEnd() noexcept
 {
   char buffer;
-  bool result = stream.readsome(&buffer, sizeof(buffer)) == sizeof(buffer);
+  bool result = stream.readsome(&buffer, sizeof(buffer)) != sizeof(buffer);
   stream.unget();
   return result;
 }
