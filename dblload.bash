@@ -1,6 +1,6 @@
 #!/bin/bash
 
-binlog_path_command=$(sudo docker exec -it dbms_container bash -c "find /var/log/mysql -type f -name 'mysql-bin.*' | grep -E 'mysql-bin.[0-9]+$' | sort | tail -n 1")
+binlog_path_command=$(sudo docker exec -it dbms_container bash -c "find /var/lib/mysql -type f -name 'mysql-bin.*' | grep -E 'mysql-bin.[0-9]+$' | sort | tail -n 1")
 binlog_path_command="${binlog_path_command%?}" # remove last '\r' symbol. How it located there? I don't know
 
 file_name="$(echo $binlog_path_command | rev | cut -d '/' -f1 | rev)"
