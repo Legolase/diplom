@@ -70,6 +70,15 @@ const char* StringBufferReader::ptr() const noexcept
   return source() + position();
 }
 
+void StringBufferReader::rewind(size_t length)
+{
+  if (length > position()) {
+    THROW(BadStream, "Attempt to jump before the buffer start");
+  }
+
+  pos -= length;
+}
+
 void StringBufferReader::skip(size_t length)
 {
   if (length > available()) {
@@ -77,6 +86,11 @@ void StringBufferReader::skip(size_t length)
   }
 
   pos += length;
+}
+
+void StringBufferReader::restart() noexcept
+{
+  pos = 0;
 }
 
 const char* StringBufferReader::source() const noexcept

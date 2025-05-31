@@ -111,10 +111,20 @@ public:
   /// @return Pointer to the memory next to be read.
   const char* ptr() const noexcept;
 
+  /// @brief Moves the read position back by the specified number of bytes.
+  /// @param[in] length The number of bytes to move back relative to the current position.
+  /// @throws `BadStream` Thrown if `length > position()`
+  void rewind(size_t length);
+
   /// @brief Skips the next `length` bytes.
   /// @param[in] length The amount to jump forward relative to the current position.
   /// @throws `BadStream` Thrown if `length > available()`
   void skip(size_t length);
+
+  /// @brief Resets the read position to the beginning of the buffer.
+  /// This method sets the internal cursor to the start of the buffer,
+  /// effectively allowing to re-read data from the beginning.
+  void restart() noexcept;
 
 private:
   /// @brief Buffer begining.
