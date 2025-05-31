@@ -115,8 +115,8 @@ std::optional<Buffer> DBBufferSource::getDataImpl()
         reinterpret_cast<const char*>(rpl.buffer + 1), rpl.size - 1
     );
 
-      return str_view;
-    }
+    return str_view;
+  }
 }
 
 EventSource::EventSource(BufferSourceI::UPtr buffer_source, DataHandler data_handler) :
@@ -130,37 +130,37 @@ std::optional<Binlog> EventSource::getDataImpl()
   event::BinlogEvent::UPtr ev;
 
   while (!ev) {
-  const auto data = buffer_source->getData();
-  if (!data) {
-    return std::nullopt;
-  }
-  static event::FormatDescriptionEvent::SPtr fde =
-      std::make_shared<event::FormatDescriptionEvent>(BINLOG_VERSION, SERVER_VERSION);
+    const auto data = buffer_source->getData();
+    if (!data) {
+      return std::nullopt;
+    }
+    static event::FormatDescriptionEvent::SPtr fde =
+        std::make_shared<event::FormatDescriptionEvent>(BINLOG_VERSION, SERVER_VERSION);
 
-  utils::StringBufferReader reader(data->data(), data->size());
-  event::LogEventType event_type;
-  PEEK(event_type, reader, EVENT_TYPE_OFFSET);
+    utils::StringBufferReader reader(data->data(), data->size());
+    event::LogEventType event_type;
+    PEEK(event_type, reader, EVENT_TYPE_OFFSET);
 
-  switch (event_type) {
-  case binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT:
-    ev = std::make_unique<binlog::event::FormatDescriptionEvent>(reader, fde.get());
-    break;
-  case binlog::event::LogEventType::ROTATE_EVENT:
-    ev = std::make_unique<binlog::event::RotateEvent>(reader, fde.get());
-    break;
-  case binlog::event::LogEventType::TABLE_MAP_EVENT:
-    ev = std::make_unique<binlog::event::TableMapEvent>(reader, fde.get());
-    break;
-  case binlog::event::LogEventType::UPDATE_ROWS_EVENT_V1:
-    ev = std::make_unique<binlog::event::UpdateRowsEvent>(reader, fde.get());
-    break;
-  case binlog::event::LogEventType::DELETE_ROWS_EVENT_V1:
-    ev = std::make_unique<binlog::event::DeleteRowsEvent>(reader, fde.get());
-    break;
-  case binlog::event::LogEventType::WRITE_ROWS_EVENT_V1:
-    ev = std::make_unique<binlog::event::WriteRowsEvent>(reader, fde.get());
-    break;
-  default:
+    switch (event_type) {
+    case binlog::event::LogEventType::FORMAT_DESCRIPTION_EVENT:
+      ev = std::make_unique<binlog::event::FormatDescriptionEvent>(reader, fde.get());
+      break;
+    case binlog::event::LogEventType::ROTATE_EVENT:
+      ev = std::make_unique<binlog::event::RotateEvent>(reader, fde.get());
+      break;
+    case binlog::event::LogEventType::TABLE_MAP_EVENT:
+      ev = std::make_unique<binlog::event::TableMapEvent>(reader, fde.get());
+      break;
+    case binlog::event::LogEventType::UPDATE_ROWS_EVENT_V1:
+      ev = std::make_unique<binlog::event::UpdateRowsEvent>(reader, fde.get());
+      break;
+    case binlog::event::LogEventType::DELETE_ROWS_EVENT_V1:
+      ev = std::make_unique<binlog::event::DeleteRowsEvent>(reader, fde.get());
+      break;
+    case binlog::event::LogEventType::WRITE_ROWS_EVENT_V1:
+      ev = std::make_unique<binlog::event::WriteRowsEvent>(reader, fde.get());
+      break;
+    default:
       LOG_DEBUG() << "Unknown event";
     }
   }
