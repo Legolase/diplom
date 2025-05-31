@@ -289,6 +289,7 @@ RowsEvent::RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* 
   const auto post_header_len = fde->post_header_len[(int)type - 1];
   m_type = type;
 
+  m_table_id = 0;
   if (post_header_len != 6) {
     READ_ARR(&m_table_id, 6);
   } else {
@@ -398,7 +399,6 @@ TableMapEvent::TableMapEvent(
     BinlogEvent(reader, fde)
 {
   m_table_id = 0;
-
   if (fde->post_header_len[LogEventType::TABLE_MAP_EVENT - 1] == 6) {
     READ_ARR(&m_table_id, 4);
   } else {
