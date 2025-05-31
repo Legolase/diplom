@@ -63,8 +63,7 @@ namespace cdc {
 DBBufferSource::DBBufferSource(
     const char* host, const char* user, const char* passwd, const char* db,
     unsigned int port
-) :
-    fde(binlog::BINLOG_VERSION, binlog::SERVER_VERSION)
+)
 {
   mysql_init(&conn);
 
@@ -112,44 +111,12 @@ std::optional<Buffer> DBBufferSource::getDataImpl()
       return {};
     }
 
-    std::string_view str_view(reinterpret_cast<const char*>(rpl.buffer), rpl.size);
+    std::string_view str_view(
+        reinterpret_cast<const char*>(rpl.buffer + 1), rpl.size - 1
+    );
 
-    // check is rotation required
-    utils::StringBufferReader reader(str_view);
-    binlog::event::LogEventType event_type;
-
-    PEEK(event_type, reader);
-
-    switch (event_type) {
-    case binlog::event::ROTATE_EVENT:
-      if (!rotate(reader)) {
-        THROW(std::runtime_error, "Exception in rotation process of binlog file");
-      }
-      break;
-    case binlog::event::FORMAT_DESCRIPTION_EVENT:
-      formatDescription(reader);
-    default:
       return str_view;
     }
-  }
-}
-
-bool DBBufferSource::rotate(utils::StringBufferReader& reader)
-{
-  mysql_binlog_close(&conn, &rpl);
-  binlog::event::RotateEvent rotate_event(reader, &fde);
-  file_path_opt = rotate_event.new_log_ident;
-
-  rpl.file_name = file_path_opt.value().c_str();
-  rpl.file_name_length = file_path_opt.value().size();
-  rpl.start_position = rotate_event.pos;
-
-  return mysql_binlog_open(&conn, &rpl) == 0;
-}
-
-void DBBufferSource::formatDescription(utils::StringBufferReader& reader)
-{
-  fde = binlog::event::FormatDescriptionEvent(reader, &fde);
 }
 
 EventSource::EventSource(BufferSourceI::UPtr buffer_source, DataHandler data_handler) :

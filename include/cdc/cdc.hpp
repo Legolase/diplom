@@ -76,13 +76,8 @@ protected:
   virtual std::optional<Buffer> getDataImpl() final override;
 
 private:
-  bool rotate(utils::StringBufferReader& reader);
-  void formatDescription(utils::StringBufferReader& reader);
-
   MYSQL conn;
   MYSQL_RPL rpl;
-  binlog::event::FormatDescriptionEvent fde;
-  std::optional<std::string> file_path_opt{std::nullopt};
 };
 
 struct EventSource final : EventSourceI {
