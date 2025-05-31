@@ -354,7 +354,9 @@ void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
 
   while (context.row_r.available()) {
     auto& doc = docs.emplace_back() = components::document::make_document(resource);
-    fillDocument(doc, context);
+    if (fillDocument(doc, context) != FillState::OK) {
+      return;
+    }
   }
 
   otterbrix_consumer->putData(ExtendedNode{
@@ -377,7 +379,9 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
   while (context.row_r.available()) {
     auto doc = components::document::make_document(resource);
 
-    fillDocument(doc, context);
+    if (fillDocument(doc, context) != FillState::OK) {
+      return;
+    }
 
     auto selection_params = getSelectionParameters(doc, context);
 
@@ -404,8 +408,11 @@ void OtterBrixDiffSink::sendNodesUpdate(const TableDiff& data)
     auto old_doc = components::document::make_document(resource);
     auto new_doc = components::document::make_document(resource);
 
-    fillDocument(old_doc, context);
-    fillDocument(new_doc, context);
+    if ((fillDocument(old_doc, context) != FillState::OK) ||
+        (fillDocument(new_doc, context) != FillState::OK))
+    {
+      return;
+    }
 
     auto selection_params = getSelectionParameters(old_doc, context);
     auto& expr = selection_params.first;
@@ -421,13 +428,17 @@ void OtterBrixDiffSink::sendNodesUpdate(const TableDiff& data)
   }
 }
 
-void OtterBrixDiffSink::fillDocument(
+OtterBrixDiffSink::FillState OtterBrixDiffSink::fillDocument(
     components::document::document_ptr& doc, ReadContext& context
 )
 {
   auto& json_pointer = context.cached_data.json_pointer;
   auto& null_bitmap = context.cached_data.null_bitmap;
   int null_bitmap_byte_size = (context.data.width + 7) / 8;
+
+  context.column_type_r.restart();
+  context.column_metatype_r.restart();
+  context.signedness_r.restart();
 
   toVectorBool(null_bitmap, std::string_view(context.row_r.ptr(), null_bitmap_byte_size));
   context.row_r.skip(null_bitmap_byte_size);
@@ -454,17 +465,19 @@ void OtterBrixDiffSink::fillDocument(
           int8_t value = context.row_r.read<int8_t>();
           doc->set(json_pointer, value);
         }
+        break;
       }
       case TableMapEvent::TYPE_SHORT: {
         auto unsigned_ = context.signedness_r.read();
 
         if (unsigned_) {
-          uint16_t value = context.row_r.read<uint8_t>();
+          uint16_t value = context.row_r.read<uint16_t>();
           doc->set(json_pointer, value);
         } else {
           int16_t value = context.row_r.read<int16_t>();
           doc->set(json_pointer, value);
         }
+        break;
       }
       case TableMapEvent::TYPE_INT24: {
         auto unsigned_ = context.signedness_r.read();
@@ -486,6 +499,7 @@ void OtterBrixDiffSink::fillDocument(
           context.row_r.readCpy((char*)&value, 3);
           doc->set(json_pointer, value);
         }
+        break;
       }
       case TableMapEvent::TYPE_LONG: {
         auto unsigned_ = context.signedness_r.read();
@@ -497,6 +511,7 @@ void OtterBrixDiffSink::fillDocument(
           int32_t value = context.row_r.read<int32_t>();
           doc->set(json_pointer, value);
         }
+        break;
       }
       case TableMapEvent::TYPE_LONGLONG: {
         auto unsigned_ = context.signedness_r.read();
@@ -508,22 +523,26 @@ void OtterBrixDiffSink::fillDocument(
           int64_t value = context.row_r.read<int64_t>();
           doc->set(json_pointer, value);
         }
+        break;
       }
       case TableMapEvent::TYPE_FLOAT: {
         context.signedness_r.read();
         float value = context.row_r.read<float>();
         doc->set(json_pointer, value);
+        break;
       }
       case TableMapEvent::TYPE_DOUBLE: {
         context.signedness_r.read();
         double value = context.row_r.read<double>();
         doc->set(json_pointer, value);
+        break;
       }
       case TableMapEvent::TYPE_BOOL: {
         context.signedness_r.read();
 
         bool value = context.row_r.read<uint8_t>();
         doc->set(json_pointer, value);
+        break;
       }
       case TableMapEvent::TYPE_VARCHAR: {
         uint16_t max_length = context.column_metatype_r.read<uint16_t>();
@@ -534,31 +553,34 @@ void OtterBrixDiffSink::fillDocument(
         } else {
           len = context.row_r.read<uint16_t>();
         }
-        std::string str(0, len);
+        std::string str(len, 0);
         context.row_r.readCpy(str.data(), str.size());
 
         doc->set(json_pointer, std::move(str));
+        break;
       }
       case TableMapEvent::TYPE_STRING: {
         uint8_t real_type = context.column_metatype_r.read<uint8_t>();
 
-        if (real_type == TableMapEvent::TYPE_STRING) {
+        if (real_type != TableMapEvent::TYPE_VAR_STRING) {
           goto unexpected_type;
         }
         uint8_t& len = real_type;
         len = context.column_metatype_r.read<uint8_t>();
 
-        std::string str(0, len);
+        std::string str(len, 0);
         context.row_r.readCpy(str.data(), str.size());
         doc->set(json_pointer, std::move(str));
-      } break;
+        break;
+      }
       default: {
       unexpected_type:
-        THROW(std::runtime_error, "Unexpected type");
+        return FillState::UNKNOWN_TYPE;
       }
       }
     }
   }
+  return FillState::OK;
 }
 
 std::pair<compare_expression_ptr, parameter_node_ptr>

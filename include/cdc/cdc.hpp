@@ -144,7 +144,12 @@ private:
   void sendNodesDelete(const TableDiff& data);
   void sendNodesUpdate(const TableDiff& data);
 
-  static void fillDocument(components::document::document_ptr& doc, ReadContext& context);
+  enum class FillState {
+    OK,
+    UNKNOWN_TYPE
+  };
+
+  static FillState fillDocument(components::document::document_ptr& doc, ReadContext& context);
 
   std::pair<compare_expression_ptr, parameter_node_ptr> getSelectionParameters(
       const components::document::document_ptr& doc, ReadContext& context
