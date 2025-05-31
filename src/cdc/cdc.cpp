@@ -260,6 +260,23 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
         );
       }
 #endif
+      switch (data_binlog_uptr->header.type_code) {
+      case event::LogEventType::WRITE_ROWS_EVENT_V1:
+        rows_event = std::unique_ptr<event::WriteRowsEvent>(
+            static_cast<event::WriteRowsEvent*>(data_binlog_uptr.release())
+        );
+        break;
+      case event::LogEventType::UPDATE_ROWS_EVENT_V1:
+        rows_event = std::unique_ptr<event::UpdateRowsEvent>(
+            static_cast<event::UpdateRowsEvent*>(data_binlog_uptr.release())
+        );
+        break;
+      case event::LogEventType::DELETE_ROWS_EVENT_V1:
+        rows_event = std::unique_ptr<event::DeleteRowsEvent>(
+            static_cast<event::DeleteRowsEvent*>(data_binlog_uptr.release())
+        );
+        break;
+      }
       break;
     }
     }
