@@ -72,6 +72,13 @@ private:
   bool holded{true};
 };
 
+struct NullLogStreamer {
+  template<typename T>
+  NullLogStreamer operator<<(T&& value) {
+    return *this;
+  }
+};
+
 static_assert(std::is_copy_assignable_v<LogStreamer> == false);
 static_assert(std::is_copy_constructible_v<LogStreamer> == false);
 static_assert(std::is_move_assignable_v<LogStreamer> == false);
@@ -83,7 +90,7 @@ static_assert(std::is_move_constructible_v<LogStreamer>);
 #ifndef NDEBUG
 #define LOG_DEBUG(...) (defines_details::log_debug_impl(__VA_ARGS__))
 #else
-#define LOG_DEBUG(...) ()
+#define LOG_DEBUG(...) (NullLogStreamer{})
 #endif
 #define LOG_WARNING(...) (defines_details::log_warning_impl(__VA_ARGS__))
 #define LOG_ERROR(...) (defines_details::log_error_impl(__VA_ARGS__))
