@@ -202,7 +202,7 @@ struct FormatDescriptionEvent : BinlogEvent {
   bool dont_set_created;
   uint8_t common_header_len;
   std::vector<uint8_t> post_header_len;
-  bool has_checksum{true};
+  bool has_checksum{false};
 };
 
 struct GtidEvent : BinlogEvent {
