@@ -126,17 +126,19 @@ EventSource::EventSource(BufferSourceI::UPtr buffer_source, DataHandler data_han
 
 std::optional<Binlog> EventSource::getDataImpl()
 {
+  using namespace binlog;
+  event::BinlogEvent::UPtr ev;
+
+  while (!ev) {
   const auto data = buffer_source->getData();
   if (!data) {
     return std::nullopt;
   }
-  using namespace binlog;
   static event::FormatDescriptionEvent::SPtr fde =
       std::make_shared<event::FormatDescriptionEvent>(BINLOG_VERSION, SERVER_VERSION);
 
   utils::StringBufferReader reader(data->data(), data->size());
   event::LogEventType event_type;
-  event::BinlogEvent::UPtr ev;
   PEEK(event_type, reader, EVENT_TYPE_OFFSET);
 
   switch (event_type) {
@@ -159,11 +161,10 @@ std::optional<Binlog> EventSource::getDataImpl()
     ev = std::make_unique<binlog::event::WriteRowsEvent>(reader, fde.get());
     break;
   default:
-    LOG_WARNING() << "Unknown event";
-    goto return_ev;
+      LOG_DEBUG() << "Unknown event";
+    }
   }
 
-return_ev:
   return ev;
 }
 
