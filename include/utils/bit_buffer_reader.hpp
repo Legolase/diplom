@@ -109,6 +109,12 @@ public:
     return result;
   }
 
+  /// @brief Resets the read position to the beginning of the bit stream.
+  void restart() noexcept
+  {
+    pos = 0;
+  }
+
 private:
   /**
    * @brief Get the total size of the buffer in bits.
