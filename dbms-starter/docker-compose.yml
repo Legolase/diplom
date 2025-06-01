@@ -12,7 +12,7 @@ services:
     #   - ./entrypoint-initdb.d:/docker-entrypoint-initdb.d
     environment:
       MYSQL_DATABASE: e_store
-      MYSQL_USER: nikita
+      MYSQL_USER: nikitaAdd commentMore actions
       MYSQL_PASSWORD: biba
       MYSQL_ROOT_PASSWORD: person
       MYSQL_ROOT_HOST: '%'

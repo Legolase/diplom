@@ -1,3 +1,3 @@
-FROM mysql:8.0.41-debian
-COPY my.cnf /etc/my.cnf
-CMD ["mysqld"]
+FROM mariadb:11.4.5-noble
+COPY my.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
+CMD ["mariadbd"]
