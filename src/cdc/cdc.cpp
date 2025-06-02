@@ -63,21 +63,46 @@ namespace cdc {
 DBBufferSource::DBBufferSource(
     const char* host, const char* user, const char* passwd, const char* db,
     unsigned int port
-)
+) :
+    host(host),
+    user(user),
+    passwd(passwd),
+    db(db),
+    port(port)
 {
   mysql_init(&conn);
+  connect();
+}
 
-  if (!mysql_real_connect(&conn, host, user, passwd, db, port, nullptr, 0)) {
+DBBufferSource::~DBBufferSource()
+{
+  disconnect();
+}
+
+std::optional<Buffer> DBBufferSource::getDataImpl()
+{
+  while (true) {
+    const auto& buffer = nextEventBuffer();
+
+    process(buffer);
+
+    return buffer;
+  }
+}
+
+void DBBufferSource::connect()
+{
+  if (!mysql_real_connect(
+          &conn, host.c_str(), user.c_str(), passwd.c_str(), db.c_str(), port, nullptr, 0
+      ))
+  {
     LOG_ERROR() << "     Error: " << mysql_error(&conn);
     LOG_ERROR() << "Error code: " << mysql_errno(&conn);
     THROW(std::runtime_error, fmt::format("Can't connect to `{}`", db));
   }
 
-  rpl.file_name_length = 0;
-  rpl.file_name = nullptr;
-  rpl.start_position = 4;
-  rpl.server_id = 0;
-  rpl.flags = 0;
+  // To update position of next not processed event
+  rotate();
 
   if (mysql_binlog_open(&conn, &rpl)) {
     mysql_close(&conn);
@@ -86,17 +111,30 @@ DBBufferSource::DBBufferSource(
   LOG_INFO() << fmt::format("Connected to `{}`", db);
 }
 
-DBBufferSource::~DBBufferSource()
+void DBBufferSource::disconnect()
 {
-  std::string db = conn.db;
-
   mysql_binlog_close(&conn, &rpl);
   mysql_close(&conn);
 
   LOG_INFO() << fmt::format("Connection to {} successfully closed", db);
 }
 
-std::optional<Buffer> DBBufferSource::getDataImpl()
+void DBBufferSource::rotate()
+{
+  rpl.file_name = file_path.c_str();
+  rpl.file_name_length = file_path.size();
+  rpl.start_position = next_pos;
+  rpl.server_id = 0;
+  rpl.flags = 0;
+  fde = {binlog::BINLOG_VERSION, binlog::SERVER_VERSION};
+
+  LOG_DEBUG() << "Rotation:";
+  LOG_DEBUG() << "         rpl.file_name: " << rpl.file_name;
+  LOG_DEBUG() << "  rpl.file_name_length: " << rpl.file_name_length;
+  LOG_DEBUG() << "    rpl.start_position: " << rpl.start_position;
+}
+
+std::string_view DBBufferSource::nextEventBuffer()
 {
   while (true) {
     if (mysql_binlog_fetch(&conn, &rpl)) {
@@ -106,16 +144,54 @@ std::optional<Buffer> DBBufferSource::getDataImpl()
       THROW(std::runtime_error, "Binlog receive error");
     }
 
-    if (rpl.size == 0) {
-      LOG_WARNING() << fmt::format("EOF catched from db '{}'", conn.db);
-      return {};
+    if (rpl.size != 0) {
+      utils::StringBufferReader reader(
+          reinterpret_cast<const char*>(rpl.buffer + 1), rpl.size - 1
+      );
+      decltype(next_pos) new_next_pos;
+
+      PEEK(new_next_pos, reader, binlog::LOG_POS_OFFSET);
+
+      if (new_next_pos) {
+        next_pos = new_next_pos;
+      } else {
+        LOG_DEBUG(
+        ) << R"_(Received "virtual" event without valid log_pos value.)_";
+      }
+
+      return std::string_view(
+          reinterpret_cast<const char*>(rpl.buffer + 1), rpl.size - 1
+      );
     }
+    LOG_DEBUG() << "Received binary event buffer is empty.";
+    LOG_DEBUG() << fmt::format("Attempt to reconnect to '{}' database.", db);
+    disconnect();
+    connect();
+  }
+}
 
-    std::string_view str_view(
-        reinterpret_cast<const char*>(rpl.buffer + 1), rpl.size - 1
-    );
+void DBBufferSource::process(std::string_view buffer)
+{
+  utils::StringBufferReader reader(buffer);
 
-    return str_view;
+  binlog::event::LogEventType event_type;
+  uint32_t event_size;
+
+  PEEK(event_type, reader, binlog::EVENT_TYPE_OFFSET);
+  PEEK(event_size, reader, binlog::DATA_WRITTEN_OFFSET);
+
+  switch (event_type) {
+  case binlog::event::ROTATE_EVENT: {
+    fde = {binlog::BINLOG_VERSION, binlog::SERVER_VERSION};
+    binlog::event::RotateEvent rotate_event(reader, &fde);
+    file_path = std::move(rotate_event.new_log_ident);
+    next_pos = rotate_event.pos;
+    break;
+  }
+  case binlog::event::FORMAT_DESCRIPTION_EVENT: {
+    fde = binlog::event::FormatDescriptionEvent(reader, &fde);
+    break;
+  }
   }
 }
 

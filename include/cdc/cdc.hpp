@@ -76,8 +76,25 @@ protected:
   virtual std::optional<Buffer> getDataImpl() final override;
 
 private:
+  void connect();
+  void disconnect();
+  void rotate();
+
+  std::string_view nextEventBuffer();
+  void process(std::string_view buffer);
+
   MYSQL conn;
   MYSQL_RPL rpl;
+  binlog::event::FormatDescriptionEvent fde{
+      binlog::BINLOG_VERSION, binlog::SERVER_VERSION
+  };
+  const std::string host;
+  const std::string user;
+  const std::string passwd;
+  const std::string db;
+  const int port;
+  std::string file_path;
+  uint32_t next_pos{4};
 };
 
 struct EventSource final : EventSourceI {
@@ -144,7 +161,8 @@ private:
     UNKNOWN_TYPE
   };
 
-  static FillState fillDocument(components::document::document_ptr& doc, ReadContext& context);
+  static FillState
+  fillDocument(components::document::document_ptr& doc, ReadContext& context);
 
   std::pair<compare_expression_ptr, parameter_node_ptr> getSelectionParameters(
       const components::document::document_ptr& doc, ReadContext& context
