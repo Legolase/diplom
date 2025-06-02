@@ -24,6 +24,7 @@ inline constexpr uint32_t BINLOG_MAGIC = 0x6e6962fe;
 
 inline constexpr int EVENT_TYPE_OFFSET = 4;
 inline constexpr int DATA_WRITTEN_OFFSET = 9;
+inline constexpr int LOG_POS_OFFSET = 13;
 
 constexpr unsigned char checksum_version_split[3] = {5, 3, 0};
 constexpr unsigned long checksum_version_product =
