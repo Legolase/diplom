@@ -26,18 +26,9 @@ namespace utils {
  * position.
  */
 class StringBufferReader {
-  using storage_t = std::variant<std::string, std::string_view>;
+  using storage_t = std::string_view;
 
 public:
-  /**
-   * Creates a stream instance with a copy of the source string. Useful when you don't
-   * have permission to manage the allocated memory.
-   *
-   * @param[in] line Used to copy the source string. Forced `move(...)`, so the parameter
-   * is clean. When the line is rvalue it is not copied
-   */
-  explicit StringBufferReader(std::string line);
-
   /// @brief Simple work with a given С-string without copying
   /// @param[in] source C-string line
   /// @param[in] size Size of C-string line

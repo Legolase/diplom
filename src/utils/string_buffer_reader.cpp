@@ -2,10 +2,6 @@
 
 namespace utils {
 
-StringBufferReader::StringBufferReader(std::string line) :
-    storage_v(std::move(line))
-{}
-
 StringBufferReader::StringBufferReader(const char* source, size_t size) noexcept :
     storage_v(std::string_view(source, size))
 {}
@@ -47,17 +43,7 @@ void StringBufferReader::flipEnd(size_t length)
     THROW(BadStream, "Attempt to flip more bytes than available");
   }
 
-  std::visit(
-      Overload{
-          [&](std::string& str) {
-            str.resize(str.size() - length);
-          },
-          [&](std::string_view& str_view) {
-            str_view.remove_suffix(length);
-          },
-      },
-      storage_v
-  );
+  storage_v.remove_suffix(length);
 }
 
 size_t StringBufferReader::position() const noexcept
@@ -95,32 +81,12 @@ void StringBufferReader::restart() noexcept
 
 const char* StringBufferReader::source() const noexcept
 {
-  return std::visit(
-      Overload{
-          [](const std::string& str) {
-            return str.data();
-          },
-          [](const std::string_view& str_view) {
-            return str_view.data();
-          }
-      },
-      storage_v
-  );
+  return storage_v.data();
 }
 
 size_t StringBufferReader::size() const noexcept
 {
-  return std::visit(
-      Overload{
-          [](const std::string& str) {
-            return str.size();
-          },
-          [](const std::string_view& str_view) {
-            return str_view.size();
-          }
-      },
-      storage_v
-  );
+  return storage_v.size();
 }
 
 } // namespace utils
