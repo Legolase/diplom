@@ -25,35 +25,14 @@ void toVectorBool(std::vector<bool>& result, const T& source)
   }(std::make_index_sequence<value_type_size>{});
 }
 
-void setValue(
-    components::document::document_ptr doc, std::string_view json_pointer,
-    utils::StringBufferReader& column_type_r,
-    utils::StringBufferReader& column_metatype_r, utils::StringBufferReader& row_r,
-    const cdc::TableDiff& data
-)
+std::pmr::string gen_id(uint64_t num, std::pmr::memory_resource* resource)
 {
-  using namespace binlog::event;
-  TableMapEvent::ColumnType type;
-  int current_signedness_index = 0;
-
-  READ(type, column_type_r);
-
-  switch (type) {
-  case TableMapEvent::TYPE_TINY:
-  case TableMapEvent::TYPE_SHORT:
-  case TableMapEvent::TYPE_INT24:
-  case TableMapEvent::TYPE_LONG:
-  case TableMapEvent::TYPE_LONGLONG:
-  case TableMapEvent::TYPE_FLOAT:
-  case TableMapEvent::TYPE_DOUBLE:
-  case TableMapEvent::TYPE_BIT:
-  case TableMapEvent::TYPE_BOOL:
-  case TableMapEvent::TYPE_VARCHAR:
-  case TableMapEvent::TYPE_STRING:
-    break;
-  default:
-    THROW(std::runtime_error, "Unexpected type");
-  }
+  static constexpr int id_len = 24;
+  std::pmr::string str_num{std::to_string(num), resource};
+  std::pmr::string result(resource);
+  result.reserve(id_len);
+  result.resize(id_len - str_num.size(), '0');
+  return result + str_num;
 }
 
 } // namespace
@@ -155,8 +134,7 @@ std::string_view DBBufferSource::nextEventBuffer()
       if (new_next_pos) {
         next_pos = new_next_pos;
       } else {
-        LOG_DEBUG(
-        ) << R"_(Received "virtual" event without valid log_pos value.)_";
+        LOG_DEBUG() << R"_(Received "virtual" event without valid log_pos value.)_";
       }
 
       return std::string_view(
@@ -365,6 +343,9 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
   return {std::move(table_map_event), std::move(rows_event)};
 }
 
+const std::string OtterBrixDiffSink::PK_FIELD_NAME = "_id";
+const std::string OtterBrixDiffSink::PK_JSON_POINTER = std::string{"/"} + PK_FIELD_NAME;
+
 OtterBrixDiffSink::OtterBrixDiffSink(
     OtterBrixConsumerI::UPtr otterbrix_consumer, std::pmr::memory_resource* resource
 ) :
@@ -384,7 +365,7 @@ void OtterBrixDiffSink::putDataImpl(const TableDiff& data)
     sendNodesDelete(data);
     break;
   case TableDiff::UPDATE:
-    // sendNodesUpdate(data);
+    sendNodesUpdate(data);
     break;
   }
 }
@@ -414,14 +395,11 @@ void OtterBrixDiffSink::sendNodesInsert(const TableDiff& data)
   docs.reserve(16);
 
   while (context.row_r.available()) {
-    auto& doc = docs.emplace_back() = components::document::make_document(resource);
-    if (fillDocument(doc, context) != FillState::OK) {
-      return;
-    }
+    docs.emplace_back() = getDocument(context);
   }
 
   otterbrix_consumer->putData(ExtendedNode{
-      .node_ptr = make_node_insert(resource, collection, std::move(docs)),
+      .node = make_node_insert(resource, collection, std::move(docs)),
       .parameter = nullptr
   });
 }
@@ -438,11 +416,7 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
   ReadContext context(data);
 
   while (context.row_r.available()) {
-    auto doc = components::document::make_document(resource);
-
-    if (fillDocument(doc, context) != FillState::OK) {
-      return;
-    }
+    auto doc = getDocument(context);
 
     auto selection_params = getSelectionParameters(doc, context);
 
@@ -450,7 +424,7 @@ void OtterBrixDiffSink::sendNodesDelete(const TableDiff& data)
     auto& params = selection_params.second;
 
     otterbrix_consumer->putData(ExtendedNode{
-        .node_ptr = make_node_delete_one(
+        .node = make_node_delete_one(
             resource, collection, make_node_match(resource, collection, std::move(expr))
         ),
         .parameter = std::move(params)
@@ -466,33 +440,41 @@ void OtterBrixDiffSink::sendNodesUpdate(const TableDiff& data)
   ReadContext context(data);
 
   while (context.row_r.available()) {
-    auto old_doc = components::document::make_document(resource);
-    auto new_doc = components::document::make_document(resource);
-
-    if ((fillDocument(old_doc, context) != FillState::OK) ||
-        (fillDocument(new_doc, context) != FillState::OK))
-    {
-      return;
-    }
+    auto old_doc = getDocument(context);
+    auto new_doc = getDocument(context);
+    auto set_doc = components::document::make_document(resource);
 
     auto selection_params = getSelectionParameters(old_doc, context);
     auto& expr = selection_params.first;
     auto& params = selection_params.second;
 
+    new_doc->remove(PK_JSON_POINTER);
+    set_doc->set("$set", new_doc);
+
     otterbrix_consumer->putData(ExtendedNode{
-        .node_ptr = make_node_update_one(
+        .node = make_node_update_one(
             resource, collection, make_node_match(resource, collection, std::move(expr)),
-            std::move(new_doc)
+            std::move(set_doc)
         ),
         .parameter = std::move(params)
     });
   }
 }
 
-OtterBrixDiffSink::FillState OtterBrixDiffSink::fillDocument(
-    components::document::document_ptr& doc, ReadContext& context
-)
+components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& context)
 {
+  auto doc = components::document::make_document(resource);
+  const auto pk_index = getPrimaryKeyIndex(context);
+
+  if (pk_index == -1) {
+    THROW(
+        std::runtime_error, fmt::format(
+                                "Table {}.{}. Primary key must be one and name == '_id'.",
+                                context.data.collection_name, context.data.table_name
+                            )
+    );
+  }
+
   auto& json_pointer = context.cached_data.json_pointer;
   auto& null_bitmap = context.cached_data.null_bitmap;
   int null_bitmap_byte_size = (context.data.width + 7) / 8;
@@ -507,7 +489,34 @@ OtterBrixDiffSink::FillState OtterBrixDiffSink::fillDocument(
   for (int i = 0; i < context.data.width; ++i) {
     json_pointer = "/";
     json_pointer += context.data.column_name_list[i];
-    if (null_bitmap[i]) {
+    if (i == pk_index) {
+      if (null_bitmap[i]) {
+        THROW(
+            std::runtime_error, fmt::format(
+                                    "Table: {}.{}. Primary key '{}' must have value.",
+                                    context.data.table_name, context.data.collection_name,
+                                    context.data.column_name_list[pk_index]
+                                )
+        );
+      }
+      using namespace binlog::event;
+      TableMapEvent::ColumnType type;
+      auto unsigned_ = context.signedness_r.read();
+      READ(type, context.column_type_r);
+
+      if (type != TableMapEvent::TYPE_LONGLONG || !unsigned_) {
+        THROW(
+            std::runtime_error,
+            fmt::format(
+                "Table: {}.{}. Type of primary key '{}' must have unsigned integral.",
+                context.data.table_name, context.data.collection_name,
+                context.data.column_name_list[pk_index]
+            )
+        );
+      }
+      uint64_t value = context.row_r.read<uint64_t>();
+      doc->set(json_pointer, gen_id(value, resource));
+    } else if (null_bitmap[i]) {
       doc->set(json_pointer, nullptr);
     } else {
       using namespace binlog::event;
@@ -636,12 +645,12 @@ OtterBrixDiffSink::FillState OtterBrixDiffSink::fillDocument(
       }
       default: {
       unexpected_type:
-        return FillState::UNKNOWN_TYPE;
+        THROW(std::runtime_error, "Unknown type");
       }
       }
     }
   }
-  return FillState::OK;
+  return doc;
 }
 
 std::pair<compare_expression_ptr, parameter_node_ptr>
@@ -652,95 +661,126 @@ OtterBrixDiffSink::getSelectionParameters(
   using namespace components::expressions;
   using param_t = core::parameter_id_t;
 
-  auto expr = components::expressions::make_compare_union_expression(
-      resource, compare_type::union_and
+  if (getPrimaryKeyIndex(context) == -1) {
+    THROW(
+        std::runtime_error, fmt::format(
+                                "Table {}.{}. Primary key must be one and name == '_id'.",
+                                context.data.table_name, context.data.collection_name
+                            )
+    );
+  }
+
+  auto expr = components::expressions::make_compare_expression(
+      resource, compare_type::eq, components::expressions::key_t{PK_FIELD_NAME},
+      core::parameter_id_t{1}
   );
   auto params = components::logical_plan::make_parameter_node(resource);
-  uint16_t current_parameter_id = 1;
 
-  for (int i = 0; i < context.data.column_primary_key_list.size();
-       ++i, ++current_parameter_id)
-  {
-    const auto primary_key_index = context.data.column_primary_key_list[i];
-    const auto& field_name = context.data.column_name_list[primary_key_index];
-    const auto& json_pointer = (context.cached_data.json_pointer = "/") += field_name;
-    const auto logic_type = doc->type_by_key(json_pointer);
+  const auto logic_type = doc->type_by_key(PK_JSON_POINTER);
 
-    auto add_parameter = [this, &expr, &field_name, &current_parameter_id,
-                          &params](const auto& value) {
-      expr->append_child(components::expressions::make_compare_expression(
-          resource, compare_type::eq, components::expressions::key_t{field_name},
-          core::parameter_id_t{current_parameter_id}
-      ));
-      params->add_parameter(param_t{current_parameter_id}, value);
-    };
+  assert(logic_type == components::types::logical_type::STRING_LITERAL);
 
-    switch (logic_type) {
-    case components::types::logical_type::NA: {
-      THROW(
-          std::runtime_error,
-          "Assertion error. At least one column of primary key has null value"
-      );
-    }
-    case components::types::logical_type::TINYINT: {
-      add_parameter(doc->get_tinyint(json_pointer));
-      break;
-    }
-    case components::types::logical_type::SMALLINT: {
-      add_parameter(doc->get_smallint(json_pointer));
-      break;
-    }
-    case components::types::logical_type::INTEGER: {
-      add_parameter(doc->get_int(json_pointer));
-      break;
-    }
-    case components::types::logical_type::BIGINT: {
-      add_parameter(doc->get_long(json_pointer));
-      break;
-    }
-    case components::types::logical_type::UTINYINT: {
-      add_parameter(doc->get_utinyint(json_pointer));
-      break;
-    }
-    case components::types::logical_type::USMALLINT: {
-      add_parameter(doc->get_usmallint(json_pointer));
-      break;
-    }
-    case components::types::logical_type::UINTEGER: {
-      add_parameter(doc->get_uint(json_pointer));
-      break;
-    }
-    case components::types::logical_type::UBIGINT: {
-      add_parameter(doc->get_ulong(json_pointer));
-      break;
-    }
-    case components::types::logical_type::FLOAT: {
-      add_parameter(doc->get_float(json_pointer));
-      break;
-    }
-    case components::types::logical_type::DOUBLE: {
-      add_parameter(doc->get_double(json_pointer));
-      break;
-    }
-    case components::types::logical_type::BOOLEAN: {
-      add_parameter(doc->get_bool(json_pointer));
-      break;
-    }
-    case components::types::logical_type::STRING_LITERAL: {
-      add_parameter(doc->get_string(json_pointer));
-      break;
-    }
-    default:
-      THROW(std::runtime_error, "Expected known type");
-    }
-  }
+  params->add_parameter(param_t{1}, doc->get_string(PK_JSON_POINTER));
 
   return {std::move(expr), std::move(params)};
 }
 
+int OtterBrixDiffSink::getPrimaryKeyIndex(const ReadContext& context) noexcept
+{
+  const auto& pk_list = context.data.column_primary_key_list;
+  const auto& column_name_list = context.data.column_name_list;
+
+  if (pk_list.size() != 1 || column_name_list[pk_list[0]] != "_id") {
+    return -1;
+  }
+
+  return pk_list[0];
+}
+
 OtterBrixConsumerSink::OtterBrixConsumerSink(DataHandler data_handler) :
     OtterBrixConsumerI(data_handler)
-{}
+{
+  const char* path = "/tmp/test_collection_sql/base";
+  auto config = configuration::config::create_config(path);
+  config.log.level = log_t::level::warn;
 
-void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node) {}
+  std::filesystem::remove_all(config.main_path);
+  std::filesystem::create_directories(config.main_path);
+
+  otterbrix_service = otterbrix::make_otterbrix(config);
+}
+
+std::pmr::memory_resource* OtterBrixConsumerSink::resource() const noexcept
+{
+  return otterbrix_service->dispatcher()->resource();
+}
+
+void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node)
+{
+  auto node = boost::const_pointer_cast<node_t>(extended_node.node);
+  auto params = boost::const_pointer_cast<parameter_node_t>(extended_node.parameter);
+
+  processContextStorage(node);
+  assert(otterbrix_service->dispatcher() == otterbrix_service->dispatcher());
+
+  auto res = otterbrix_service->dispatcher()->execute_plan(
+      otterbrix::session_id_t(), node, params
+  );
+  assert(res->is_success());
+
+  selectStage();
+}
+
+void OtterBrixConsumerSink::processContextStorage(node_ptr node)
+{
+  const auto& database_name = node->database_name();
+  const auto& collection_name = node->collection_name();
+
+  auto database_it = context_storage.find(database_name);
+
+  if (database_it == context_storage.end()) {
+    otterbrix_service->dispatcher()->create_database(
+        otterbrix::session_id_t(), database_name
+    );
+    database_it = context_storage.emplace(database_name, set_t<std::string>{}).first;
+  }
+
+  auto& collection_set = database_it->second;
+  auto collection_it = collection_set.find(collection_name);
+
+  if (collection_it == collection_set.end()) {
+    otterbrix_service->dispatcher()->create_collection(
+        otterbrix::session_id_t(), database_name, collection_name
+    );
+    collection_it = collection_set.emplace(collection_name).first;
+  }
+}
+
+void OtterBrixConsumerSink::selectStage()
+{
+  LOG_INFO() << "++++++++++++++++++++++++++++++++++++++++++++++++";
+  for (const auto& [database_name, database] : context_storage) {
+    for (const auto& collection_name : database) {
+      LOG_INFO() << fmt::format("Collection: `{}`.`{}`", database_name, collection_name);
+      std::string query = "SELECT * FROM ";
+      query += database_name.c_str();
+      query += ".";
+      query += collection_name.c_str();
+      query += ";";
+      auto curson_p = otterbrix_service->dispatcher()->execute_sql(
+          otterbrix::session_id_t(),
+          fmt::format("SELECT * FROM {}.{};", database_name, collection_name)
+      );
+
+      LOG_DEBUG() << "cursor_p.size() == " << curson_p->size();
+      while (curson_p->has_next()) {
+        auto data = curson_p->next();
+        LOG_INFO() << "    " << data->to_json();
+      }
+
+      LOG_INFO() << "+++++++++++++++++++++";
+    }
+  }
+  LOG_INFO() << "++++++++++++++++++++++++++++++++++++++++++++++++";
+}
 } // namespace cdc

@@ -1,15 +1,15 @@
 SET default_storage_engine = INNODB;
 
 CREATE TABLE `e_store`.`brands`(
-    `id` INT UNSIGNED NOT NULL auto_increment ,
+    `_id` BIGINT UNSIGNED NOT NULL auto_increment ,
     `name` VARCHAR(250) NOT NULL ,
-    PRIMARY KEY(`id`)
+    PRIMARY KEY(`_id`)
 );
 
 CREATE TABLE `e_store`.`categories`(
-    `id` INT UNSIGNED NOT NULL auto_increment ,
+    `_id` BIGINT UNSIGNED NOT NULL auto_increment ,
     `name` VARCHAR(250) NOT NULL ,
-    PRIMARY KEY(`id`)
+    PRIMARY KEY(`_id`)
 );
 
 INSERT INTO `e_store`.`brands`(`name`)
@@ -38,15 +38,15 @@ VALUES
     
     
 CREATE TABLE `e_store`.`products`(
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT ,
+    `_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT ,
     `name` VARCHAR(250) NOT NULL ,
-    `brand_id` INT UNSIGNED NOT NULL ,
-    `category_id` INT UNSIGNED NOT NULL ,
-    PRIMARY KEY(`id`) ,
+    `brand_id` BIGINT UNSIGNED NOT NULL ,
+    `category_id` BIGINT UNSIGNED NOT NULL ,
+    PRIMARY KEY(`_id`) ,
     INDEX `CATEGORY_ID`(`category_id` ASC) ,
     INDEX `BRAND_ID`(`brand_id` ASC) ,
-    CONSTRAINT `brand_id` FOREIGN KEY(`brand_id`) REFERENCES `e_store`.`brands`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE ,
-    CONSTRAINT `category_id` FOREIGN KEY(`category_id`) REFERENCES `e_store`.`categories`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT `brand_id` FOREIGN KEY(`brand_id`) REFERENCES `e_store`.`brands`(`_id`) ON DELETE RESTRICT ON UPDATE CASCADE ,
+    CONSTRAINT `category_id` FOREIGN KEY(`category_id`) REFERENCES `e_store`.`categories`(`_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 

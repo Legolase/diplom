@@ -13,6 +13,7 @@
 #include <components/logical_plan/param_storage.hpp>
 #include <concepts>
 #include <functional>
+#include <integration/cpp/otterbrix.hpp>
 #include <mysql/mysql.h>
 #include <span>
 #include <type_traits>
@@ -34,10 +35,16 @@ using OtterBrixDiffSinkI = conveyor::Sink<TableDiff>;
 using OtterBrixConsumerI = conveyor::Sink<ExtendedNode>;
 using MainProcess = conveyor::Universal<TableDiff>;
 
+using node_t = components::logical_plan::node_t;
+using node_ptr = components::logical_plan::node_ptr;
+using node_insert_t = components::logical_plan::node_insert_t;
 using node_insert_ptr = components::logical_plan::node_insert_ptr;
+using node_delete_t = components::logical_plan::node_delete_t;
 using node_delete_ptr = components::logical_plan::node_delete_ptr;
+using node_update_t = components::logical_plan::node_update_t;
 using node_update_ptr = components::logical_plan::node_update_ptr;
 
+using parameter_node_t = components::logical_plan::parameter_node_t;
 using parameter_node_ptr = components::logical_plan::parameter_node_ptr;
 using compare_expression_ptr = components::expressions::compare_expression_ptr;
 
@@ -60,7 +67,7 @@ struct TableDiff {
 };
 
 struct ExtendedNode {
-  std::variant<node_insert_ptr, node_delete_ptr, node_update_ptr> node_ptr;
+  node_ptr node;
   components::logical_plan::parameter_node_ptr parameter;
 };
 
@@ -133,6 +140,9 @@ protected:
 private:
   using node_ptr = components::logical_plan::node_ptr;
 
+  static const std::string PK_FIELD_NAME;
+  static const std::string PK_JSON_POINTER;
+
   struct ReadContext {
     explicit ReadContext(const TableDiff& data);
 
@@ -156,17 +166,21 @@ private:
   void sendNodesDelete(const TableDiff& data);
   void sendNodesUpdate(const TableDiff& data);
 
-  enum class FillState {
-    OK,
-    UNKNOWN_TYPE
-  };
-
-  static FillState
-  fillDocument(components::document::document_ptr& doc, ReadContext& context);
+  components::document::document_ptr getDocument(ReadContext& context);
 
   std::pair<compare_expression_ptr, parameter_node_ptr> getSelectionParameters(
       const components::document::document_ptr& doc, ReadContext& context
   );
+
+  /**
+   * @brief Returns the index of the column that is the primary key.
+   *
+   * @param[in] context Read context information
+   *
+   * @returns The index of the primary key or '-1' if the primary keys of the table are
+   * invalid.
+   */
+  static int getPrimaryKeyIndex(const ReadContext& context) noexcept;
 
   OtterBrixConsumerI::UPtr otterbrix_consumer;
   std::pmr::memory_resource* resource;
@@ -175,8 +189,24 @@ private:
 struct OtterBrixConsumerSink final : OtterBrixConsumerI {
   explicit OtterBrixConsumerSink(DataHandler data_handler);
 
+  std::pmr::memory_resource* resource() const noexcept;
+
 protected:
   virtual void putDataImpl(const ExtendedNode& extended_node) override;
+
+private:
+  template<typename K, typename V>
+  using map_t = std::unordered_map<K, V>;
+
+  template<typename T>
+  using set_t = std::unordered_set<T>;
+
+  void processContextStorage(node_ptr node);
+  void selectStage();
+
+  otterbrix::otterbrix_ptr otterbrix_service;
+
+  map_t<std::string, set_t<std::string>> context_storage;
 };
 
 } // namespace cdc
