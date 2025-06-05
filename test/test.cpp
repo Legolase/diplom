@@ -7,7 +7,8 @@
 #include <utils/stream_reader.hpp>
 #include <utils/string_buffer_reader.hpp>
 
-TEST(StringBufferReader, Test1) {
+TEST(StringBufferReader, Test1)
+{
   using namespace utils;
 
   const char* input_line = "\xf0\x00\x00\x00\x01\x00\x00\x00";
@@ -36,7 +37,8 @@ TEST(StringBufferReader, Test1) {
   }
 }
 
-TEST(StringBufferReader, CheckMoveSemantic1) {
+TEST(StringBufferReader, CheckMoveSemantic1)
+{
   using namespace utils;
 
   const char* input_line = "\xf0\x00\x00\x00\x01\x00\x00\x00";
@@ -59,7 +61,8 @@ TEST(StringBufferReader, CheckMoveSemantic1) {
   ASSERT_EQ(a, 16711681);
 }
 
-TEST(StringBufferReader, CheckMoveSemantic2) {
+TEST(StringBufferReader, CheckMoveSemantic2)
+{
   using namespace utils;
 
   const char* input_line = "\xf0\x00\x00\x00\x01\x00\x00\x00";
@@ -76,7 +79,8 @@ TEST(StringBufferReader, CheckMoveSemantic2) {
   ASSERT_EQ(b, 1);
 }
 
-TEST(StringBufferReader, Access) {
+TEST(StringBufferReader, Access)
+{
   using namespace utils;
 
   const char* empty_line = "";
@@ -131,7 +135,8 @@ TEST(StringBufferReader, Access) {
   }
 }
 
-TEST(StringBufferReader, Sequence1) {
+TEST(StringBufferReader, Sequence1)
+{
   using namespace utils;
 
   char input_line[] = "\x01 \x20\x03 \x07\x80\x09\xa0";
@@ -147,7 +152,8 @@ TEST(StringBufferReader, Sequence1) {
   ASSERT_EQ(c, 2684977159);
 }
 
-TEST(StringBufferReader, Sequence2) {
+TEST(StringBufferReader, Sequence2)
+{
   using namespace utils;
 
   char input_line[] = "\x01 \x20\x03 \x07\x80\x09\xa0";
@@ -165,7 +171,8 @@ TEST(StringBufferReader, Sequence2) {
   ASSERT_EQ(c, "\x07\x80\x09\xa0");
 }
 
-TEST(StringBufferReader, Sequence3) {
+TEST(StringBufferReader, Sequence3)
+{
   using namespace utils;
 
   char input_line[] = "\x01 \x20\x03 \x07\x80\x09\xa0 \x0b";
@@ -191,7 +198,8 @@ TEST(StringBufferReader, Sequence3) {
   }
 }
 
-TEST(StreamReader, All) {
+TEST(StreamReader, All)
+{
   using namespace utils;
   const char input_line[] = "\x01\xf0\x02\xe0\x03\xd0\x04\xc0";
   const size_t input_line_size = sizeof(input_line) - 1;
@@ -230,14 +238,153 @@ TEST(StreamReader, All) {
   }
 }
 
-TEST(BinlogReader, FormatDescriptionEvent) {
-  const char* file_path = "./binlog/mysql-bin.000003";
-  std::vector<binlog::event::BinlogEvent::UPtr> v;
+TEST(BinlogReader, FormatDescriptionEvent)
+{
+  binlog::event::FormatDescriptionEvent fde_start(
+      binlog::BINLOG_VERSION, binlog::SERVER_VERSION
+  );
+  const char fde_buffer[] =
+      "\xc9\xe4\x41\x68\x0f\x01\x00\x00\x00\xfc\x00\x00\x00\x00\x01\x00\x00\x00\x00\x04"
+      "\x00\x31\x31\x2e\x34\x2e\x35\x2d\x4d\x61\x72\x69\x61\x44\x42\x2d\x75\x62\x75\x32"
+      "\x34\x30\x34\x2d\x6c\x6f\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc9\xe4\x41\x68\x13\x38\x0d\x00\x08"
+      "\x00\x12\x00\x04\x04\x04\x04\x12\x00\x00\xe4\x00\x04\x1a\x08\x00\x00\x00\x08\x08"
+      "\x08\x02\x00\x00\x00\x0a\x0a\x0a\x00\x00\x00\x00\x00\x00\x0a\x0a\x0a\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x04\x13\x04\x00"
+      "\x0d\x08\x08\x08\x0a\x0a\x0a\x00\xbf\xf4\xea\xc1";
+  const auto fde_size = sizeof(fde_buffer) - 1;
+  utils::StringBufferReader reader(fde_buffer, fde_size);
+  std::vector<uint8_t> expected_post_header_len = {
+      0x38, 0x0d, 0x00, 0x08, 0x00, 0x12, 0x00, 0x04, 0x04, 0x04, 0x04, 0x12, 0x00, 0x00,
+      0xe4, 0x00, 0x04, 0x1a, 0x08, 0x00, 0x00, 0x00, 0x08, 0x08, 0x08, 0x02, 0x00, 0x00,
+      0x00, 0x0a, 0x0a, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x0a, 0x0a, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x13, 0x04, 0x00, 0x0d, 0x08, 0x08, 0x08,
+      0x0a, 0x0a, 0x0a
+  };
 
-  binlog::reader::read(file_path, v);
+  binlog::event::FormatDescriptionEvent fde_event(reader, &fde_start);
+
+  EXPECT_EQ(fde_event.header.when, 1749148873UL);
+  EXPECT_EQ(fde_event.header.type_code, 15UL);
+  EXPECT_EQ(fde_event.header.unmasked_server_id, 1UL);
+  EXPECT_EQ(fde_event.header.data_written, 252UL);
+  EXPECT_EQ(fde_event.header.log_pos, 256UL);
+  EXPECT_EQ(fde_event.header.flags, 0UL);
+
+  EXPECT_EQ(fde_event.binlog_version, 4UL);
+  EXPECT_TRUE(
+      std::memcmp(
+          fde_event.server_version,
+          "\x31\x31\x2e\x34\x2e\x35\x2d\x4d\x61\x72\x69\x61\x44\x42\x2d\x75\x62\x75\x32"
+          "\x34\x30\x34\x2d\x6c\x6f\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+          "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+          sizeof(fde_event.server_version)
+      ) == 0
+  );
+  EXPECT_TRUE(fde_event.dont_set_created);
+  EXPECT_EQ(fde_event.created, 1749148873UL);
+  EXPECT_EQ(fde_event.common_header_len, 19UL);
+  EXPECT_EQ(fde_event.post_header_len, expected_post_header_len);
+  EXPECT_TRUE(fde_event.has_checksum);
 }
 
-int main(int argc, char** argv) {
+TEST(BinlogReader, RotateEvent)
+{
+  binlog::event::FormatDescriptionEvent fde_start(
+      binlog::BINLOG_VERSION, binlog::SERVER_VERSION
+  );
+  const char rotate_buffer[] =
+      "\x01\x01\x01\x01\x04\x05\x00\x00\x00\x2b\x00\x00\x00\x01\x20\x03\x40\x20\x00\x04"
+      "\x00\x00\x01\x00\x00\x00\x00\x6d\x79\x73\x71\x6c\x2d\x62\x69\x6e\x2e\x30\x30\x30"
+      "\x31\x32\x31";
+  const auto rotate_size = sizeof(rotate_buffer) - 1;
+  utils::StringBufferReader reader(rotate_buffer, rotate_size);
+
+  binlog::event::RotateEvent rotate_event(reader, &fde_start);
+
+  EXPECT_EQ(rotate_event.header.when, 16843009UL);
+  EXPECT_EQ(rotate_event.header.type_code, 4UL);
+  EXPECT_EQ(rotate_event.header.unmasked_server_id, 5UL);
+  EXPECT_EQ(rotate_event.header.data_written, 43UL);
+  EXPECT_EQ(rotate_event.header.log_pos, 1073946625UL);
+  EXPECT_EQ(rotate_event.header.flags, 32UL);
+
+  EXPECT_EQ(rotate_event.flags, 2UL);
+  EXPECT_EQ(rotate_event.pos, 16777220UL);
+  EXPECT_EQ(rotate_event.new_log_ident, "mysql-bin.000121");
+}
+
+TEST(BinlogReader, TableMapEvent)
+{
+  binlog::event::FormatDescriptionEvent fde_start(
+      binlog::BINLOG_VERSION, binlog::SERVER_VERSION
+  );
+
+  const char tm_buffer[] =
+      "\x59\x0e\x42\x68\x13\x01\x0a\x00\x00\x49\x00\x00\x00\x00\x00\x00\x00\x00\x00\x12"
+      "\x00\x00\x00\x00\x00\x01\x00\x07\x65\x5f\x73\x74\x6f\x72\x65\x00\x06\x62\x72\x61"
+      "\x6e\x64\x73\x00\x02\x08\x0f\x02\xe8\x03\x00\x01\x01\x80\x02\x03\xfc\x00\x09\x04"
+      "\x09\x03\x5f\x69\x64\x04\x6e\x61\x6d\x65\x08\x01\x00";
+  const auto tm_size = sizeof(tm_buffer) - 1;
+  utils::StringBufferReader reader(tm_buffer, tm_size);
+
+  binlog::event::TableMapEvent tm_event(reader, &fde_start);
+
+  EXPECT_EQ(tm_event.header.when, 1749159513UL);
+  EXPECT_EQ(tm_event.header.type_code, 19UL);
+  EXPECT_EQ(tm_event.header.unmasked_server_id, 2561UL);
+  EXPECT_EQ(tm_event.header.data_written, 73UL);
+  EXPECT_EQ(tm_event.header.log_pos, 0UL);
+  EXPECT_EQ(tm_event.header.flags, 0UL);
+
+  EXPECT_EQ(tm_event.m_table_id, 18UL);
+  EXPECT_EQ(tm_event.m_flags, 1UL);
+  EXPECT_EQ(tm_event.m_dbnam, "e_store");
+  EXPECT_EQ(tm_event.m_tblnam, "brands");
+  EXPECT_EQ(tm_event.column_count, 2UL);
+  EXPECT_EQ(std::memcmp(tm_event.m_coltype.data(), "\x08\x0f", 2), 0);
+  EXPECT_EQ(std::memcmp(tm_event.m_field_metadata.data(), "\xE8\x03", 2), 0);
+  EXPECT_EQ(std::memcmp(tm_event.m_null_bits.data(), "\x00", 1), 0);
+
+  const char expected_optional_metadata[] =
+      "\x01\x01\x80\x02\x03\xfc\x00\x09\x04\x09\x03\x5f\x69\x64\x04\x6e\x61\x6d\x65\x08"
+      "\x01\x00";
+  EXPECT_EQ(
+      std::memcmp(
+          tm_event.m_optional_metadata.data(), expected_optional_metadata,
+          sizeof(expected_optional_metadata) - 1
+      ),
+      0
+  );
+
+  const auto simple_pk = tm_event.getSimplePrimaryKey();
+  EXPECT_EQ(simple_pk, std::vector<uint16_t>{0});
+
+  const auto column_name_list = tm_event.getColumnName();
+  std::vector<std::string> expected_column_name_list;
+  expected_column_name_list.push_back("_id");
+  expected_column_name_list.push_back("name");
+  EXPECT_EQ(column_name_list, expected_column_name_list);
+
+  const auto signedness = tm_event.getSignedness();
+  EXPECT_EQ(std::memcmp(signedness.data(),"\x80", 1), 0);
+}
+
+int main(int argc, char** argv)
+{
   ::testing::InitGoogleTest(&argc, argv);
 
   return RUN_ALL_TESTS();

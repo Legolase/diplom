@@ -227,3 +227,7 @@ VALUES(
     '3' ,
     '3'
 );
+
+UPDATE `e_store`.`brands`
+SET `name` = 'Canina'
+WHERE `_id` = 2 OR `_id` = 3;
