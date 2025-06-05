@@ -11,7 +11,9 @@
                 "/home/nikita/.conan2/p/magic51afdf0e65e14/p/include",
                 "/home/nikita/.conan2/p/msgpae036afd951f27/p/include",
                 "/home/nikita/.conan2/p/b/libmyd49c9ec67264d/p/include",
-                "/home/nikita/.conan2/p/b/abseid7653cf0cac04/p/include"
+                "/home/nikita/.conan2/p/b/abseid7653cf0cac04/p/include",
+                "/home/nikita/.conan2/p/b/actored5da30ff06cc/p/include",
+                "/home/nikita/.conan2/p/b/spdlo585725a8a1427/b/src/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
