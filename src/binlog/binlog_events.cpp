@@ -410,11 +410,13 @@ TableMapEvent::TableMapEvent(
 
   m_dbnam.resize(db_name_len);
   READ_ARR(m_dbnam.data(), m_dbnam.size());
+  m_dbnam.pop_back(); // remove '\0'
 
   uint64_t tb_name_len = get_packed_integer(reader) + 1;
 
   m_tblnam.resize(tb_name_len);
   READ_ARR(m_tblnam.data(), m_tblnam.size());
+  m_tblnam.pop_back(); // remove '\0'
 
   column_count = get_packed_integer(reader);
 
