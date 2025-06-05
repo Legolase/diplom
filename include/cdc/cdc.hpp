@@ -48,6 +48,12 @@ using parameter_node_t = components::logical_plan::parameter_node_t;
 using parameter_node_ptr = components::logical_plan::parameter_node_ptr;
 using compare_expression_ptr = components::expressions::compare_expression_ptr;
 
+template<typename K, typename V>
+using map_t = std::unordered_map<K, V>;
+
+template<typename T>
+using set_t = std::unordered_set<T>;
+
 struct TableDiff {
   enum Type {
     INSERT,
@@ -127,16 +133,21 @@ protected:
   virtual std::optional<TableDiff> getDataImpl() final override;
 
 private:
-  using EventPackage =
-      std::pair<binlog::event::TableMapEvent::UPtr, binlog::event::RowsEvent::UPtr>;
+  using TablePtr = binlog::event::TableMapEvent::UPtr;
+  using RowsPtr = binlog::event::RowsEvent::UPtr;
+  using EventPackage = std::pair<TablePtr, RowsPtr>;
 
   EventPackage getEventPackage();
 
+  void submitTableInfo(TablePtr&& tm_event);
+  TablePtr extractTableInfo(const uint64_t table_id);
+
   EventSourceI::UPtr event_source;
+  map_t<uint64_t, binlog::event::TableMapEvent::UPtr> table_info_map;
 };
 
 struct OtterBrixDiffSink final : OtterBrixDiffSinkI {
-  
+
   DECLARE_EXCEPTION(OtterBrixDiffSinkError);
 
   OtterBrixDiffSink(
@@ -204,12 +215,6 @@ protected:
   virtual void putDataImpl(const ExtendedNode& extended_node) override;
 
 private:
-  template<typename K, typename V>
-  using map_t = std::unordered_map<K, V>;
-
-  template<typename T>
-  using set_t = std::unordered_set<T>;
-
   void processContextStorage(node_ptr node);
   void selectStage();
 

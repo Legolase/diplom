@@ -286,32 +286,17 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
     auto& data_binlog_uptr = data.value();
     switch (data_binlog_uptr->header.type_code) {
     case event::LogEventType::TABLE_MAP_EVENT: {
-      if (table_map_event) {
-        THROW(
-            TableDiffSourceError,
-            "Invalid event sequence -- expected RowsEvent, got TableMapEvent"
-        );
-      }
       table_map_event = std::unique_ptr<event::TableMapEvent>(
           static_cast<event::TableMapEvent*>(data_binlog_uptr.release())
       );
+
+      submitTableInfo(std::move(table_map_event));
+
       break;
     }
     case event::LogEventType::WRITE_ROWS_EVENT_V1:
     case event::LogEventType::UPDATE_ROWS_EVENT_V1:
     case event::LogEventType::DELETE_ROWS_EVENT_V1: {
-      if (!table_map_event) {
-        THROW(
-            TableDiffSourceError, "Invalid event sequence: Expected TableMapEvent before "
-                                  "RowsEvent, got RowsEvent"
-        );
-      }
-      if (rows_event) {
-        THROW(
-            TableDiffSourceError,
-            "Invalid stage error: RowsEvent already got but asked for again"
-        );
-      }
       switch (data_binlog_uptr->header.type_code) {
       case event::LogEventType::WRITE_ROWS_EVENT_V1:
         rows_event = std::unique_ptr<event::WriteRowsEvent>(
@@ -333,12 +318,50 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
     }
     }
 
-    if (table_map_event && rows_event) {
+    if (rows_event) {
+      if (!(table_map_event = extractTableInfo(rows_event->m_table_id))) {
+        THROW(
+            TableDiffSourceError, fmt::format(
+                                      "Expected existance info for table with id({}) "
+                                      "before submiting rows event.",
+                                      rows_event->m_table_id
+                                  )
+        );
+      }
       // Got all info. Can convert to TableDiff
       break;
     }
   }
   return {std::move(table_map_event), std::move(rows_event)};
+}
+
+void TableDiffSource::submitTableInfo(TablePtr&& tm_event)
+{
+  if (!tm_event) {
+    return;
+  }
+
+  const auto& table_id = tm_event->m_table_id;
+
+  auto it = table_info_map.find(table_id);
+
+  if (it == table_info_map.end()) {
+    table_info_map.emplace(table_id, std::move(tm_event));
+    return;
+  }
+
+  it->second = std::move(tm_event);
+}
+
+TableDiffSource::TablePtr TableDiffSource::extractTableInfo(const uint64_t table_id)
+{
+  auto it = table_info_map.find(table_id);
+
+  if (it == table_info_map.end()) {
+    return nullptr;
+  }
+
+  return TablePtr(it->second.release());
 }
 
 const std::string OtterBrixDiffSink::PK_FIELD_NAME = "_id";
