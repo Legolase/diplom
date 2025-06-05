@@ -72,7 +72,10 @@ struct ExtendedNode {
 };
 
 struct DBBufferSource final : BufferSourceI {
-  struct Context {};
+
+  DECLARE_EXCEPTION(DBConnectionError);
+  DECLARE_EXCEPTION(DBBinlogError);
+
   DBBufferSource(
       const char* host, const char* user, const char* passwd, const char* db,
       unsigned int port
@@ -115,6 +118,9 @@ private:
 };
 
 struct TableDiffSource final : TableDiffSourceI {
+
+  DECLARE_EXCEPTION(TableDiffSourceError);
+
   TableDiffSource(EventSourceI::UPtr event_source, DataHandler table_diff_handler);
 
 protected:
@@ -130,6 +136,9 @@ private:
 };
 
 struct OtterBrixDiffSink final : OtterBrixDiffSinkI {
+  
+  DECLARE_EXCEPTION(OtterBrixDiffSinkError);
+
   OtterBrixDiffSink(
       OtterBrixConsumerI::UPtr otterbrix_consumer, std::pmr::memory_resource* resource
   );

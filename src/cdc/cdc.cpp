@@ -77,7 +77,7 @@ void DBBufferSource::connect()
   {
     LOG_ERROR() << "     Error: " << mysql_error(&conn);
     LOG_ERROR() << "Error code: " << mysql_errno(&conn);
-    THROW(std::runtime_error, fmt::format("Can't connect to `{}`", db));
+    THROW(DBConnectionError, fmt::format("Can't connect to `{}`", db));
   }
 
   // To update position of next not processed event
@@ -85,7 +85,7 @@ void DBBufferSource::connect()
 
   if (mysql_binlog_open(&conn, &rpl)) {
     mysql_close(&conn);
-    THROW(std::runtime_error, "Can't open binlog source");
+    THROW(DBBinlogError, "Can't open binlog source");
   }
   LOG_INFO() << fmt::format("Connected to `{}`", db);
 }
@@ -120,7 +120,7 @@ std::string_view DBBufferSource::nextEventBuffer()
       LOG_ERROR() << fmt::format("Failed to read binlog from db '{}'", conn.db);
       LOG_ERROR(
       ) << fmt::format("Error code {}: {}", mysql_errno(&conn), mysql_error(&conn));
-      THROW(std::runtime_error, "Binlog receive error");
+      THROW(DBBinlogError, "Binlog receive event error");
     }
 
     if (rpl.size != 0) {
@@ -288,7 +288,7 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
     case event::LogEventType::TABLE_MAP_EVENT: {
       if (table_map_event) {
         THROW(
-            std::runtime_error,
+            TableDiffSourceError,
             "Invalid event sequence -- expected RowsEvent, got TableMapEvent"
         );
       }
@@ -302,18 +302,16 @@ TableDiffSource::EventPackage TableDiffSource::getEventPackage()
     case event::LogEventType::DELETE_ROWS_EVENT_V1: {
       if (!table_map_event) {
         THROW(
-            std::runtime_error, "Invalid event sequence: Expected TableMapEvent before "
-                                "RowsEvent, got RowsEvent"
+            TableDiffSourceError, "Invalid event sequence: Expected TableMapEvent before "
+                                  "RowsEvent, got RowsEvent"
         );
       }
-#ifndef NDEBUG
       if (rows_event) {
         THROW(
-            std::logic_error,
+            TableDiffSourceError,
             "Invalid stage error: RowsEvent already got but asked for again"
         );
       }
-#endif
       switch (data_binlog_uptr->header.type_code) {
       case event::LogEventType::WRITE_ROWS_EVENT_V1:
         rows_event = std::unique_ptr<event::WriteRowsEvent>(
@@ -468,10 +466,11 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
   if (pk_index == -1) {
     THROW(
-        std::runtime_error, fmt::format(
-                                "Table {}.{}. Primary key must be one and name == '_id'.",
-                                context.data.collection_name, context.data.table_name
-                            )
+        OtterBrixDiffSinkError,
+        fmt::format(
+            "Table {}.{}. Primary key must be one and name == '{}'.",
+            context.data.collection_name, context.data.table_name, PK_FIELD_NAME
+        )
     );
   }
 
@@ -492,11 +491,12 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
     if (i == pk_index) {
       if (null_bitmap[i]) {
         THROW(
-            std::runtime_error, fmt::format(
-                                    "Table: {}.{}. Primary key '{}' must have value.",
-                                    context.data.table_name, context.data.collection_name,
-                                    context.data.column_name_list[pk_index]
-                                )
+            OtterBrixDiffSinkError,
+            fmt::format(
+                "Table: {}.{}. Primary key '{}' must have value.",
+                context.data.table_name, context.data.collection_name,
+                context.data.column_name_list[pk_index]
+            )
         );
       }
       using namespace binlog::event;
@@ -506,7 +506,7 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
       if (type != TableMapEvent::TYPE_LONGLONG || !unsigned_) {
         THROW(
-            std::runtime_error,
+            OtterBrixDiffSinkError,
             fmt::format(
                 "Table: {}.{}. Type of primary key '{}' must have unsigned integral.",
                 context.data.table_name, context.data.collection_name,
@@ -645,7 +645,7 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
       }
       default: {
       unexpected_type:
-        THROW(std::runtime_error, "Unknown type");
+        THROW(OtterBrixDiffSinkError, "Unknown type");
       }
       }
     }
@@ -663,10 +663,11 @@ OtterBrixDiffSink::getSelectionParameters(
 
   if (getPrimaryKeyIndex(context) == -1) {
     THROW(
-        std::runtime_error, fmt::format(
-                                "Table {}.{}. Primary key must be one and name == '_id'.",
-                                context.data.table_name, context.data.collection_name
-                            )
+        OtterBrixDiffSinkError,
+        fmt::format(
+            "Table {}.{}. Primary key must be one and name == '{}'.",
+            context.data.table_name, context.data.collection_name, PK_FIELD_NAME
+        )
     );
   }
 
@@ -690,7 +691,7 @@ int OtterBrixDiffSink::getPrimaryKeyIndex(const ReadContext& context) noexcept
   const auto& pk_list = context.data.column_primary_key_list;
   const auto& column_name_list = context.data.column_name_list;
 
-  if (pk_list.size() != 1 || column_name_list[pk_list[0]] != "_id") {
+  if (pk_list.size() != 1 || column_name_list[pk_list[0]] != PK_FIELD_NAME) {
     return -1;
   }
 
@@ -728,7 +729,9 @@ void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node)
   );
   assert(res->is_success());
 
+#ifndef NDEBUG
   selectStage();
+#endif
 }
 
 void OtterBrixConsumerSink::processContextStorage(node_ptr node)
@@ -762,17 +765,11 @@ void OtterBrixConsumerSink::selectStage()
   for (const auto& [database_name, database] : context_storage) {
     for (const auto& collection_name : database) {
       LOG_INFO() << fmt::format("Collection: `{}`.`{}`", database_name, collection_name);
-      std::string query = "SELECT * FROM ";
-      query += database_name.c_str();
-      query += ".";
-      query += collection_name.c_str();
-      query += ";";
       auto curson_p = otterbrix_service->dispatcher()->execute_sql(
           otterbrix::session_id_t(),
           fmt::format("SELECT * FROM {}.{};", database_name, collection_name)
       );
 
-      LOG_DEBUG() << "cursor_p.size() == " << curson_p->size();
       while (curson_p->has_next()) {
         auto data = curson_p->next();
         LOG_INFO() << "    " << data->to_json();

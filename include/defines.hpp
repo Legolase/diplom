@@ -18,6 +18,14 @@
       "{}{}{}", #exception_type, CURRENT_POSITION, (message)                             \
   )))
 
+#define DECLARE_EXCEPTION(class_name)                                                    \
+  struct class_name final : std::runtime_error {                                         \
+    template<typename... Args>                                                           \
+    explicit class_name(Args&&... args) :                                                \
+        std::runtime_error(std::forward<Args>(args)...)                                  \
+    {}                                                                                   \
+  }
+
 namespace defines_details {
 
 template<typename T>
@@ -74,7 +82,8 @@ private:
 
 struct NullLogStreamer {
   template<typename T>
-  NullLogStreamer operator<<(T&& value) {
+  NullLogStreamer operator<<(T&& value)
+  {
     return *this;
   }
 };
