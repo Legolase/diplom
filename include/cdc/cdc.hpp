@@ -206,7 +206,7 @@ private:
   std::pmr::memory_resource* resource;
 };
 
-struct OtterBrixConsumerSink final : OtterBrixConsumerI {
+struct OtterBrixConsumerSink : OtterBrixConsumerI {
   explicit OtterBrixConsumerSink(DataHandler data_handler);
 
   std::pmr::memory_resource* resource() const noexcept;
@@ -214,12 +214,10 @@ struct OtterBrixConsumerSink final : OtterBrixConsumerI {
 protected:
   virtual void putDataImpl(const ExtendedNode& extended_node) override;
 
-private:
   void processContextStorage(node_ptr node);
   void selectStage();
 
   otterbrix::otterbrix_ptr otterbrix_service;
-
   map_t<std::string, set_t<std::string>> context_storage;
 };
 

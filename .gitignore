@@ -1,4 +1,4 @@
 /[Bb]uild
-/[Ss]tatic
 *draft
 *.log
+.*/
