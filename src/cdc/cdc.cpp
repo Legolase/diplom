@@ -214,8 +214,6 @@ std::optional<Binlog> EventSource::getDataImpl()
     case binlog::event::LogEventType::WRITE_ROWS_EVENT_V1:
       ev = std::make_unique<binlog::event::WriteRowsEvent>(reader, fde.get());
       break;
-    default:
-      LOG_DEBUG() << "Unknown event";
     }
   }
 
