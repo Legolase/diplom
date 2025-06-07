@@ -553,10 +553,10 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
         if (unsigned_) {
           uint8_t value = context.row_r.read<uint8_t>();
-          doc->set(json_pointer, value);
+          doc->set<uint64_t>(json_pointer, value);
         } else {
           int8_t value = context.row_r.read<int8_t>();
-          doc->set(json_pointer, value);
+          doc->set<int64_t>(json_pointer, value);
         }
         break;
       }
@@ -565,10 +565,10 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
         if (unsigned_) {
           uint16_t value = context.row_r.read<uint16_t>();
-          doc->set(json_pointer, value);
+          doc->set<uint64_t>(json_pointer, value);
         } else {
           int16_t value = context.row_r.read<int16_t>();
-          doc->set(json_pointer, value);
+          doc->set<int64_t>(json_pointer, value);
         }
         break;
       }
@@ -579,7 +579,7 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
           uint32_t value = 0;
           context.row_r.readCpy((char*)&value, 3);
 
-          doc->set(json_pointer, value);
+          doc->set<uint64_t>(json_pointer, value);
         } else {
           int32_t value;
 
@@ -590,7 +590,7 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
           }
 
           context.row_r.readCpy((char*)&value, 3);
-          doc->set(json_pointer, value);
+          doc->set<int64_t>(json_pointer, value);
         }
         break;
       }
@@ -599,10 +599,10 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
         if (unsigned_) {
           uint32_t value = context.row_r.read<uint32_t>();
-          doc->set(json_pointer, value);
+          doc->set<uint64_t>(json_pointer, value);
         } else {
           int32_t value = context.row_r.read<int32_t>();
-          doc->set(json_pointer, value);
+          doc->set<int64_t>(json_pointer, value);
         }
         break;
       }
@@ -611,23 +611,30 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
 
         if (unsigned_) {
           uint64_t value = context.row_r.read<uint64_t>();
-          doc->set(json_pointer, value);
+          doc->set<uint64_t>(json_pointer, value);
         } else {
           int64_t value = context.row_r.read<int64_t>();
-          doc->set(json_pointer, value);
+          doc->set<int64_t>(json_pointer, value);
         }
         break;
       }
-      case TableMapEvent::TYPE_FLOAT: {
-        context.signedness_r.read();
-        float value = context.row_r.read<float>();
-        doc->set(json_pointer, value);
-        break;
-      }
+      case TableMapEvent::TYPE_FLOAT:
       case TableMapEvent::TYPE_DOUBLE: {
         context.signedness_r.read();
-        double value = context.row_r.read<double>();
-        doc->set(json_pointer, value);
+        uint8_t len = context.column_metatype_r.read<uint8_t>();
+
+        switch (len) {
+        case 4: {
+          float value = context.row_r.read<float>();
+          doc->set(json_pointer, value);
+          break;
+        }
+        case 8: {
+          double value = context.row_r.read<double>();
+          doc->set(json_pointer, value);
+          break;
+        }
+        }
         break;
       }
       case TableMapEvent::TYPE_BOOL: {
@@ -646,7 +653,8 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
         } else {
           len = context.row_r.read<uint16_t>();
         }
-        std::string str(len, 0);
+        std::pmr::string str(resource);
+        str.resize(len, 0);
         context.row_r.readCpy(str.data(), str.size());
 
         doc->set(json_pointer, std::move(str));
@@ -655,14 +663,15 @@ components::document::document_ptr OtterBrixDiffSink::getDocument(ReadContext& c
       case TableMapEvent::TYPE_STRING: {
         uint8_t real_type = context.column_metatype_r.read<uint8_t>();
 
-        if (real_type != TableMapEvent::TYPE_VAR_STRING) {
+        if (real_type != TableMapEvent::TYPE_STRING) {
           goto unexpected_type;
         }
         uint8_t& len = real_type;
-        len = context.column_metatype_r.read<uint8_t>();
-
-        std::string str(len, 0);
-        context.row_r.readCpy(str.data(), str.size());
+        len = context.column_metatype_r.read<uint8_t>() / 4;
+        std::pmr::string str(resource);
+        str.resize(len, ' ');
+        len = context.row_r.read<uint8_t>();
+        context.row_r.readCpy(str.data(), len);
         doc->set(json_pointer, std::move(str));
         break;
       }
