@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd dbms-starter
+cd docker
 
 # docker-compose build
 sudo docker-compose up
