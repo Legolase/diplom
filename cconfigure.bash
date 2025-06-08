@@ -1,3 +1,3 @@
 #!/bin/bash
 
-conan install . --output-folder= --build=missing --profile=Debug
+conan install . --output-folder= --build=missing --profile=Release

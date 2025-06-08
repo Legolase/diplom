@@ -4,26 +4,26 @@
         "conan": {}
     },
     "include": [
-        "build/Debug/generators/CMakePresets.json"
+        "build/Release/generators/CMakePresets.json"
     ],
     "configurePresets": [
         {
             "name": "default",
-            "inherits": "conan-debug",
+            "inherits": "conan-release",
             "displayName": "Normal build",
             "description": "Стандартная сборка",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_BUILD_TYPE": "Release",
                 "BUILD_TESTS": "OFF"
             }
         },
         {
             "name": "tests",
-            "inherits": "conan-debug",
+            "inherits": "conan-release",
             "displayName": "Build with GTest",
             "description": "Сборка тестов GTest",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_BUILD_TYPE": "Release",
                 "BUILD_TESTS": "ON"
             }
         }
