@@ -159,6 +159,7 @@ struct BinlogEvent {
 
   explicit BinlogEvent(LogEventType _type);
   explicit BinlogEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+  virtual ~BinlogEvent() = default;
 
   void show(std::ostream& out = std::cout) const;
 
@@ -169,6 +170,8 @@ struct AppendBlockEvent : BinlogEvent {
   using UPtr = std::unique_ptr<AppendBlockEvent>;
   using SPtr = std::shared_ptr<AppendBlockEvent>;
 
+  virtual ~AppendBlockEvent() = default;
+
   std::string block;
   uint32_t file_id;
 };
@@ -176,11 +179,15 @@ struct AppendBlockEvent : BinlogEvent {
 struct BeginLoadQueryEvent : AppendBlockEvent {
   using UPtr = std::unique_ptr<BeginLoadQueryEvent>;
   using SPtr = std::shared_ptr<BeginLoadQueryEvent>;
+
+  virtual ~BeginLoadQueryEvent() = default;
 };
 
 struct DeleteFileEvent : BinlogEvent {
   using UPtr = std::unique_ptr<DeleteFileEvent>;
   using SPtr = std::shared_ptr<DeleteFileEvent>;
+
+  virtual ~DeleteFileEvent() = default;
 
   uint32_t file_id;
 };
@@ -191,6 +198,8 @@ struct FormatDescriptionEvent : BinlogEvent {
 
   FormatDescriptionEvent(uint8_t binlog_ver, const char* server_ver);
   FormatDescriptionEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  virtual ~FormatDescriptionEvent() = default;
 
   void show(std::ostream& out = std::cout) const;
 
@@ -223,6 +232,8 @@ public:
       ENCODED_FLAG_LENGTH + ENCODED_SID_LENGTH + ENCODED_GNO_LENGTH +
       LOGICAL_TIMESTAMP_TYPECODE_LENGTH + LOGICAL_TIMESTAMP_LENGTH;
 
+  virtual ~GtidEvent() = default;
+
   struct GtidInfo {
     int32_t rpl_gtid_sidno;
     int64_t rpl_gtid_gno;
@@ -254,11 +265,15 @@ struct HeartbeatEvent : BinlogEvent {
   using UPtr = std::unique_ptr<HeartbeatEvent>;
   using SPtr = std::shared_ptr<HeartbeatEvent>;
 
+  virtual ~HeartbeatEvent() = default;
+
   std::string log_ident;
 };
 
 struct HeartbeatV2Event : BinlogEvent {
   using UPtr = std::unique_ptr<HeartbeatV2Event>;
+
+  virtual ~HeartbeatV2Event() = default;
 
   std::string m_log_filename;
   uint64_t m_log_position;
@@ -267,11 +282,15 @@ struct HeartbeatV2Event : BinlogEvent {
 struct IgnorableEvent : BinlogEvent {
   using UPtr = std::unique_ptr<IgnorableEvent>;
   using SPtr = std::shared_ptr<IgnorableEvent>;
+
+  virtual ~IgnorableEvent() = default;
 };
 
 struct RowsQueryEvent : IgnorableEvent {
   using UPtr = std::unique_ptr<RowsQueryEvent>;
   using SPtr = std::shared_ptr<RowsQueryEvent>;
+
+  virtual ~RowsQueryEvent() = default;
 
   std::string m_rows_query;
 };
@@ -286,6 +305,8 @@ struct IncidentEvent : BinlogEvent {
     INCIDENT_COUNT
   };
 
+  virtual ~IncidentEvent() = default;
+
   EnumIncident incident;
   std::string message;
 };
@@ -294,6 +315,8 @@ struct IntvarEvent : BinlogEvent {
   using UPtr = std::unique_ptr<IntvarEvent>;
   using SPtr = std::shared_ptr<IntvarEvent>;
 
+  virtual ~IntvarEvent() = default;
+
   uint8_t type;
   uint64_t val;
 };
@@ -301,6 +324,8 @@ struct IntvarEvent : BinlogEvent {
 struct PreviousGtidEvent : BinlogEvent {
   using UPtr = std::unique_ptr<PreviousGtidEvent>;
   using SPtr = std::shared_ptr<PreviousGtidEvent>;
+
+  virtual ~PreviousGtidEvent() = default;
 
   std::string buf;
 };
@@ -314,6 +339,8 @@ struct QueryEvent : BinlogEvent {
     TERNARY_OFF,
     TERNARY_ON
   };
+
+  virtual ~QueryEvent() = default;
 
   std::string query;
   std::string db;
@@ -357,6 +384,8 @@ struct ExecuteLoadQueryEvent : QueryEvent {
     LOAD_DUP_REPLACE
   };
 
+  virtual ~ExecuteLoadQueryEvent() = default;
+
   int32_t file_id;
   uint32_t fn_pos_start;
   uint32_t fn_pos_end;
@@ -373,6 +402,8 @@ struct RotateEvent : BinlogEvent {
   RotateEvent(std::string _new_log_ident, uint32_t _flags, uint64_t _pos);
   RotateEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
+  virtual ~RotateEvent() = default;
+
   void show(std::ostream& out = std::cout) const;
 
   std::string new_log_ident;
@@ -384,6 +415,8 @@ struct RandEvent : BinlogEvent {
   using UPtr = std::unique_ptr<RandEvent>;
   using SPtr = std::shared_ptr<RandEvent>;
 
+  virtual ~RandEvent() = default;
+
   unsigned long long seed1;
   unsigned long long seed2;
 };
@@ -394,6 +427,8 @@ struct RowsEvent : BinlogEvent {
 
   explicit RowsEvent(LogEventType type);
   RowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  virtual ~RowsEvent() = default;
 
   void show(std::ostream& out = std::cout) const;
 
@@ -414,6 +449,8 @@ struct DeleteRowsEvent : RowsEvent {
 
   DeleteRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
+  virtual ~DeleteRowsEvent() = default;
+
   void show(std::ostream& out = std::cout) const;
 };
 
@@ -422,6 +459,8 @@ struct UpdateRowsEvent : RowsEvent {
   using SPtr = std::shared_ptr<UpdateRowsEvent>;
 
   UpdateRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
+
+  virtual ~UpdateRowsEvent() = default;
 
   void show(std::ostream& out = std::cout) const;
 };
@@ -432,12 +471,16 @@ struct WriteRowsEvent : RowsEvent {
 
   WriteRowsEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
+  virtual ~WriteRowsEvent() = default;
+
   void show(std::ostream& out = std::cout) const;
 };
 
 struct StopEvent : BinlogEvent {
   using UPtr = std::unique_ptr<StopEvent>;
   using SPtr = std::shared_ptr<StopEvent>;
+
+  virtual ~StopEvent() = default;
 };
 
 struct TableMapEvent : BinlogEvent {
@@ -498,6 +541,8 @@ struct TableMapEvent : BinlogEvent {
 
   TableMapEvent(utils::StringBufferReader& reader, FormatDescriptionEvent* fde);
 
+  virtual ~TableMapEvent() = default;
+
   void show(std::ostream& out = std::cout) const;
 
   std::vector<uint16_t> getSimplePrimaryKey() const;
@@ -525,6 +570,8 @@ struct TransactionContextEvent : BinlogEvent {
   using UPtr = std::unique_ptr<TransactionContextEvent>;
   using SPtr = std::shared_ptr<TransactionContextEvent>;
 
+  virtual ~TransactionContextEvent() = default;
+
   std::string server_uuid;
   uint32_t thread_id;
   bool gtid_specified;
@@ -543,6 +590,8 @@ struct TransactionPayloadEvent : BinlogEvent {
     NONE
   };
 
+  virtual ~TransactionPayloadEvent() = default;
+
   std::string m_payload;
   std::string m_buffer_sequence_view;
   uint64_t m_payload_size{0};
@@ -553,6 +602,8 @@ struct TransactionPayloadEvent : BinlogEvent {
 struct UnknownEvent : BinlogEvent {
   using UPtr = std::unique_ptr<UnknownEvent>;
   using SPtr = std::shared_ptr<UnknownEvent>;
+
+  virtual ~UnknownEvent() = default;
 };
 
 struct UserVarEvent : BinlogEvent {
@@ -567,6 +618,8 @@ struct UserVarEvent : BinlogEvent {
     ROW_RESULT,
     DECIMAL_RESULT
   };
+
+  virtual ~UserVarEvent() = default;
 
   std::string name;
   std::string val;
@@ -587,6 +640,8 @@ struct ViewChangeEvent : BinlogEvent {
   static const int ENCODED_CERT_INFO_KEY_SIZE_LEN = 2;
   static const int ENCODED_CERT_INFO_VALUE_LEN = 4;
 
+  virtual ~ViewChangeEvent() = default;
+
   char view_id[ENCODED_VIEW_ID_MAX_LEN];
   long long int seq_number;
   std::unordered_map<std::string, std::string> certification_info;
@@ -605,6 +660,8 @@ struct XAPrepareEvent : BinlogEvent {
     char data[MY_XIDDATASIZE];
   };
 
+  virtual ~XAPrepareEvent() = default;
+
   MY_XID my_xid;
   void* xid;
   bool one_phase;
@@ -613,6 +670,8 @@ struct XAPrepareEvent : BinlogEvent {
 struct XidEvent : BinlogEvent {
   using UPtr = std::unique_ptr<XidEvent>;
   using SPtr = std::shared_ptr<XidEvent>;
+
+  virtual ~XidEvent() = default;
 
   uint64_t xid;
 };

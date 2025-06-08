@@ -115,6 +115,7 @@ private:
 
 struct EventSource final : EventSourceI {
   EventSource(BufferSourceI::UPtr buffer_source, DataHandler event_handler);
+  virtual ~EventSource() = default;
 
 protected:
   virtual std::optional<Binlog> getDataImpl() final override;
@@ -128,6 +129,7 @@ struct TableDiffSource final : TableDiffSourceI {
   DECLARE_EXCEPTION(TableDiffSourceError);
 
   TableDiffSource(EventSourceI::UPtr event_source, DataHandler table_diff_handler);
+  virtual ~TableDiffSource() = default;
 
 protected:
   virtual std::optional<TableDiff> getDataImpl() final override;
@@ -153,6 +155,7 @@ struct OtterBrixDiffSink final : OtterBrixDiffSinkI {
   OtterBrixDiffSink(
       OtterBrixConsumerI::UPtr otterbrix_consumer, std::pmr::memory_resource* resource
   );
+  virtual ~OtterBrixDiffSink() = default;
 
 protected:
   virtual void putDataImpl(const TableDiff& data) final override;
@@ -208,6 +211,7 @@ private:
 
 struct OtterBrixConsumerSink : OtterBrixConsumerI {
   explicit OtterBrixConsumerSink(DataHandler data_handler);
+  virtual ~OtterBrixConsumerSink() = default;
 
   std::pmr::memory_resource* resource() const noexcept;
 

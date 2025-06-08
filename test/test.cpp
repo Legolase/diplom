@@ -419,7 +419,7 @@ TEST(BinlogReader, WriteRowsEvent)
   EXPECT_EQ(std::memcmp(wr_event.columns_after_image.data(), "\x03", 1), 0);
 
   const char expected_row[] =
-      "\xfc\x01\x00\x00\x00\x00\x00\x00\x00\x07\x00\x53\x61\x6d\x73\x75\x6e\x67\x00";
+      "\xfc\x01\x00\x00\x00\x00\x00\x00\x00\x07\x00\x53\x61\x6d\x73\x75\x6e\x67";
   EXPECT_EQ(std::memcmp(wr_event.row.data(), expected_row, sizeof(expected_row) - 1), 0);
 }
 
@@ -431,7 +431,7 @@ struct TestBufferSource final : BufferSourceI {
   TestBufferSource(const char* buffer, size_t buffer_size) noexcept :
       reader(buffer, buffer_size)
   {}
-  virtual ~TestBufferSource() noexcept {}
+  virtual ~TestBufferSource() = default;
 
 protected:
   virtual std::optional<Buffer> getDataImpl() final override
