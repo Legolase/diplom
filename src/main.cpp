@@ -14,9 +14,10 @@ decltype(auto) uptr(Args&&... args)
 int main(int argc, char** argv)
 {
   auto db_reader_source =
-      uptr<cdc::DBBufferSource>("127.0.0.1", "root", "person", "e_store", 3306);
+      uptr<cdc::DBBufferSource>("dbms", "root", "person", "e_store", 3306);
   auto event_source =
-      uptr<cdc::EventSource>(std::move(db_reader_source), [](const cdc::Binlog& ev) {});
+      uptr<cdc::EventSource>(std::move(db_reader_source), [](const cdc::Binlog& ev) {
+      });
 
   auto table_diff_source = uptr<cdc::TableDiffSource>(
       std::move(event_source),
@@ -25,7 +26,8 @@ int main(int argc, char** argv)
   );
 
   auto otterbrix_consumer =
-      uptr<cdc::OtterBrixConsumerSink>([](const cdc::ExtendedNode& e_node) {});
+      uptr<cdc::OtterBrixConsumerSink>([](const cdc::ExtendedNode& e_node) {
+      });
   auto otterbrik_diff_sink = uptr<cdc::OtterBrixDiffSink>(
       std::move(otterbrix_consumer), otterbrix_consumer->resource()
   );
