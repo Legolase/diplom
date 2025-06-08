@@ -1,24 +1,28 @@
-version: '3.1'
+version: "3.1"
 
 services:
+  cdc:
+    image: cdc_image
+    restart: always
+    container_name: cdc_container
+    depends_on:
+      - generator
+    entrypoint: "bash -c \"sleep 30 && /app/build/Release/diplom\""
 
-  db:
+  generator:
+    image: generator_image
+    restart: always
+    container_name: generator_container
+    depends_on:
+      - dbms
+
+  dbms:
     image: dbms_image
     restart: always
     container_name: dbms_container
     ports:
       - 3306:3306
-    # volumes:
-    #   - ./entrypoint-initdb.d:/docker-entrypoint-initdb.d
     environment:
       MYSQL_DATABASE: e_store
-      MYSQL_USER: nikita
-      MYSQL_PASSWORD: biba
       MYSQL_ROOT_PASSWORD: person
-      MYSQL_ROOT_HOST: '%'
-    # command:
-    #   - --character-set-server=utf8
-    #   - --collation-server=utf8_general_ci
-    # character-set-server:
-    #   - utf8
-    # (this is just an example, not intended to be a production configuration)
+      MYSQL_ROOT_HOST: "%"

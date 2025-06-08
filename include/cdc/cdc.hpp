@@ -14,7 +14,8 @@
 #include <concepts>
 #include <functional>
 #include <integration/cpp/otterbrix.hpp>
-#include <mysql/mysql.h>
+//#include <mysql/mysql.h>
+#include <mysql.h>
 #include <span>
 #include <type_traits>
 #include <variant>

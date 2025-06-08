@@ -1,8 +1,10 @@
 #include <binlog/binlog_events.hpp>
 #include <cdc/cdc.hpp>
 
+#include <chrono>
 #include <components/document/document.hpp>
 #include <concepts>
+#include <thread>
 #include <utility>
 
 #define READ(value, reader) ((value) = (reader).read<decltype(value)>())
@@ -67,6 +69,7 @@ std::optional<Buffer> DBBufferSource::getDataImpl()
 
     return buffer;
   }
+  return std::nullopt;
 }
 
 void DBBufferSource::connect()
@@ -115,6 +118,7 @@ void DBBufferSource::rotate()
 
 std::string_view DBBufferSource::nextEventBuffer()
 {
+  const auto reconnect_timeout = std::chrono::seconds(5);
   while (true) {
     if (mysql_binlog_fetch(&conn, &rpl)) {
       LOG_ERROR() << fmt::format("Failed to read binlog from db '{}'", conn.db);
@@ -142,8 +146,11 @@ std::string_view DBBufferSource::nextEventBuffer()
       );
     }
     LOG_DEBUG() << "Received binary event buffer is empty.";
-    LOG_DEBUG() << fmt::format("Attempt to reconnect to '{}' database.", db);
+    LOG_INFO() << fmt::format(
+        "Attempt to reconnect to '{}' database in {} sec.", db, reconnect_timeout.count()
+    );
     disconnect();
+    std::this_thread::sleep_for(reconnect_timeout);
     connect();
   }
 }
@@ -759,9 +766,9 @@ void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node)
   );
   assert(res->is_success());
 
-#ifndef NDEBUG
+// #ifndef NDEBUG
   selectStage();
-#endif
+// #endif
 }
 
 void OtterBrixConsumerSink::processContextStorage(node_ptr node)

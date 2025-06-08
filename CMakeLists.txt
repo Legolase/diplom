@@ -24,6 +24,9 @@ endif()
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+# set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak")
+
+
 if(BUILD_TESTS)
   enable_testing()
 
