@@ -13,8 +13,5 @@ libmysqlclient/8.0.25
 CMakeDeps
 CMakeToolchain
 
-[options]
-otterbrix/1.0.0a10-rc-3:shared=True
-
 [layout]
 cmake_layout
