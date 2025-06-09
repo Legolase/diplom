@@ -32,14 +32,6 @@ class BitBufferReader {
 
 public:
   /**
-   * @brief Construct a BitBufferReader from a string.
-   * @param line A copy of the input data to read from
-   */
-  explicit BitBufferReader(std::string line) :
-      storage_v(std::move(line))
-  {}
-
-  /**
    * @brief Construct a BitBufferReader from a raw character buffer without copy semantic.
    * Ownership of the original buffer remains with the calling function. Overwriting the
    * original buffer results in undefined behavior.

@@ -405,7 +405,9 @@ OtterBrixDiffSink::ReadContext::ReadContext(const TableDiff& data) :
         reinterpret_cast<const char*>(data.column_types.data()), data.column_types.size()
     ),
     row_r(reinterpret_cast<const char*>(data.row.data()), data.row.size()),
-    signedness_r(data.column_signedness),
+    signedness_r(
+        std::string_view(data.column_signedness.data(), data.column_signedness.size())
+    ),
     data(data)
 {}
 
@@ -766,9 +768,9 @@ void OtterBrixConsumerSink::putDataImpl(const ExtendedNode& extended_node)
   );
   assert(res->is_success());
 
-// #ifndef NDEBUG
+  // #ifndef NDEBUG
   selectStage();
-// #endif
+  // #endif
 }
 
 void OtterBrixConsumerSink::processContextStorage(node_ptr node)
