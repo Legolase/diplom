@@ -28,7 +28,7 @@ enum class BitOrder {
  */
 template<BitOrder Order>
 class BitBufferReader {
-  using storage_t = std::variant<std::string, std::string_view>;
+  using storage_t = std::string_view;
 
 public:
   /**
@@ -78,17 +78,7 @@ public:
       THROW(std::runtime_error, "Unavailable to read more bits. End of stream.");
     }
 
-    uint8_t current_char = std::visit(
-        Overload{
-            [this](const std::string& str) {
-              return str[pos / 8];
-            },
-            [this](const std::string_view& str_view) {
-              return str_view[pos / 8];
-            }
-        },
-        storage_v
-    );
+    uint8_t current_char = storage_v[pos / 8];
     uint8_t real_byte_pos = pos % 8;
 
     if constexpr (Order == BitOrder::BIG_END) {
@@ -122,17 +112,7 @@ private:
    */
   size_t size() const noexcept
   {
-    return std::visit(
-        Overload{
-            [](const std::string& str) {
-              return str.size() * 8;
-            },
-            [](const std::string_view& str_view) {
-              return str_view.size() * 8;
-            }
-        },
-        storage_v
-    );
+    return storage_v.size() * 8;
   }
 
   /**
